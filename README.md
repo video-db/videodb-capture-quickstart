@@ -133,6 +133,7 @@ asyncio.run(main())
 #### A. Trigger AI (Webhook)
 VideoDB sends webhooks when the session is active. Use this to start AI pipelines.
 
+#### Node.js
 ```javascript
 // Webhook: Start AI on active streams
 if (payload.event === "capture_session.active") {
@@ -149,9 +150,26 @@ if (payload.event === "capture_session.active") {
 }
 ```
 
+#### Python
+```python
+# Webhook: Start AI on active streams
+if payload["event"] == "capture_session.active":
+    cap = conn.get_capture_session(payload["capture_session_id"])
+    
+    # Start transcription on mic
+    if mics := cap.get_rtstream("mics"):
+        mics[0].start_transcript()
+        mics[0].index_audio(prompt="Extract action items")
+        
+    # Start visual indexing on screen
+    if displays := cap.get_rtstream("displays"):
+        displays[0].index_visuals(prompt="Describe screen activity")
+```
+
 #### B. Stream Results (WebSocket)
 Connect via WebSocket to receive real-time transcripts and insights.
 
+#### Node.js
 ```javascript
 const ws = await conn.connectWebsocket();
 await ws.connect();
@@ -164,10 +182,22 @@ for await (const ev of ws.receive()) {
 }
 ```
 
+#### Python
+```python
+ws = conn.connect_websocket()
+await ws.connect()
+
+# Receive live events
+async for ev in ws.stream():
+    if ev["channel"] == "transcript":
+        print(f"Live info: {ev['data']['text']}")
+```
+
 ### 4. Access Assets
 
 When capture stops, VideoDB automatically exports a playable video.
 
+#### Node.js
 ```javascript
 // Webhook: Receive the final asset
 if (payload.event === "capture_session.exported") {
@@ -178,6 +208,18 @@ if (payload.event === "capture_session.exported") {
   const stream = await conn.generateStream(videoId);
   console.log(`Watch here: ${stream}`);
 }
+```
+
+#### Python
+```python
+# Webhook: Receive the final asset
+if payload["event"] == "capture_session.exported":
+    video_id = payload["data"]["exported_video_id"]
+    print(f"Recording ready: {video_id}")
+    
+    # Generate a playback stream or download URL
+    stream = conn.generate_stream(video_id)
+    print(f"Watch here: {stream}")
 ```
 
 ## Community

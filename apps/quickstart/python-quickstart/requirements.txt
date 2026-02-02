@@ -1,0 +1,5 @@
+videodb[capture]
+flask
+pyngrok
+python-dotenv
+requests
