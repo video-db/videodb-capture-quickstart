@@ -1,187 +1,106 @@
-# VideoDB Recorder - Meeting Copilot
+# Sales Copilot
 
-A sample Electron application demonstrating how to integrate the **VideoDB Recorder SDK** for building a meeting copilot with screen recording and real-time transcription.
+An Electron app demonstrating **VideoDB Capture SDK** integration for meeting recording with real-time transcription.
 
 ## Features
 
-- **Screen & Audio Recording**: Captures system audio/video and microphone input.
-- **Real-time Preview**: Low-latency video preview (< 500ms) using `rtsp-relay` and canvas rendering.
-- **Real-time Transcription**: Displays live transcription segments from the Recorder SDK.
-- **Meeting Insights**: Automatically indexes recordings for searchability, ensuring your meeting data is queryable.
-- **Meeting Detection**: Automatic detection of Google Meet (Chrome, Safari) and Zoom App with notification prompts to start recording.
-- **Recording Lifecycle**: Full state tracking (Recording -> Processing -> Available) with visual status badges.
-- **Session History**: Dedicated full-screen history view with grouped lists and detailed metadata.
-- **Configuration UI**: Configure API endpoints and callback URLs directly from the app; syncs state with backend.
-- **Auto-Authentication**: Validates session tokens on startup to prevent stale access states.
-- **Deployment Ready**: Instructions provided for separating backend and frontend deployments.
-- **Permission Handling**: Built-in flow for checking and requesting system permissions (macOS).
+- **Screen & Audio Recording** - Captures screen, microphone, and system audio
+- **Real-time Transcription** - Live transcription via WebSocket connections
+- **Recording History** - Browse past recordings with AI-generated insights
+- **Live Preview** - Low-latency video preview using RTSP relay
 
 ## Architecture
 
-This Meeting Copilot app uses a **Hybrid Architecture**:
-
-1.  **Electron Frontend (Client)**:
-    - Handles UI, Screen Recording, and Audio Capture.
-    - Uses the `@videodb/recorder` SDK to stream media.
-    - **Live Preview**: Uses `rtsp-relay` to proxy RTSP streams over WebSockets for low-latency playback in a canvas.
-    - Reads `runtime.json` on startup to discover the backend URL.
-
-2.  **FastAPI Backend (Server)**:
-    - Runs locally in `server/`.
-    - Securely stores the VideoDB API Key in a local SQLite database (`users.db`).
-    - Exposes endpoints for User Registration (`/api/register`) and Session Token generation (`/api/token`).
-    - Exposes endpoints for User Registration (`/api/register`) and Session Token generation (`/api/token`).
-    - **Ngrok Tunneling**: Uses Ngrok for reliable public webhook URLs with one-time authentication setup.
-
-**Communication Flow**:
-1.  **Startup**: `scripts/start-server.sh` starts the Python backend. The backend writes its address (e.g., `http://localhost:8000`) to `runtime.json` in the project root.
-2.  **Discovery**: The Electron app reads `runtime.json` to know where to send API requests.
-3.  **Authentication**: When you "Connect", the frontend calls the backend to exchange your API Key for a secure session token.
-4.  **Session**: The frontend uses this token to initialize the Recorder SDK.
-
-## Prerequisites
-
-- **Node.js**: v16 or higher.
-- **API Key**: You need a valid VideoDB API key.
-- **macOS**: Currently, screen recording permissions and flows are optimized for macOS.
-
-> **Note**: Python 3.12 is automatically installed via [`uv`](https://github.com/astral-sh/uv) on first run. No manual Python# Meeting Copilot
-
-This is an Electron-based application that demonstrates the capabilities of the [VideoDB Recorder SDK](https://github.com/video-db/recorder). It serves as a comprehensive example of:
-
--   **Screen Recording**: Capturing the screen using the SDK.
--   **Audio Capture**: Recording microphone audio.
--   **Meeting Detection**: Using the sidecar binary to detect meeting status.
--   **Python Backend**: Using a local FastAPI server for handling recordings.
--   **Ngrok Tunneling**: Exposing the local server for callbacks.
-
-## Setup
-
-1.  **Install Dependencies**:
-    ```bash
-    npm install
-    # This also installs Python dependencies (FastAPI, uvicorn, etc.)
-    ```
-
-2.  **Configuration**:
-    -   The app uses `config.json` in `Application Support` for persistent auth.
-    -   Reads `runtime.json` on startup to discover the backend URL. Simply run `npm start` and the app will prompt you for your VideoDB API Key.
-
-### Optional: Environment Variables
-
-If you want to customize settings or disable the public tunnel, copy the example file:
-
-```bash
-cp .env.example .env
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Electron Frontend                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │   UI/UX     │  │  Capture    │  │  WebSocket Client   │  │
+│  │  (HTML/JS)  │  │  Client SDK │  │  (Transcription)    │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   FastAPI Backend                            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │   Auth &    │  │  Cloudflare │  │  Webhook Handler    │  │
+│  │   Tokens    │  │   Tunnel    │  │  (capture_session)  │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      VideoDB Cloud                           │
+│         Storage • Streaming • Transcription • AI            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-| Variable | Description |
-|----------|-------------|
-| `API_PORT` | Port for local backend (default: `8000`) |
-| `USE_TUNNEL` | Enable/disable public tunnel (default: `true`) |
+## Quick Start
 
-> **Note**: Your VideoDB API Key is entered in the app UI at startup, not in `.env`. This keeps your key secure in a local database rather than a plain text file.
+### 1. Setup
 
-## Running the App
+```bash
+cd apps/electron/sales-copilot
+./scripts/setup.sh --api-key YOUR_VIDEODB_API_KEY
+```
 
-Start the application in development mode:
+### 2. Run
 
 ```bash
 npm start
 ```
 
-This command executes `scripts/start-server.sh`, which automatically:
-1.  Creates a Python virtual environment in `server/venv` (if missing).
-2.  Installs [`uv`](https://github.com/astral-sh/uv) (a fast Python package installer) if not already installed.
-3.  Installs necessary Python dependencies using `uv`.
-4.  Starts the local FastAPI backend on port `8000` (or next available).
-5.  Launches the Electron application.
-
-> **Note**: The local server writes a `runtime.json` file to the project root, which the Electron app reads to connect to the correct backend port.
-
-## Usage Guide
-
-1.  **Connect Profile**:
-    - Enter your **Name** and **VideoDB API Key**.
-    - Click **Connect & Start**.
-    - The app will securely register you with the local server and store an access token.
-    - **Note**: Your API Key is stored only on the local backend database (`users.db`), never in the frontend.
-
-2.  **Start Session**:
-    - Click **"Start Session"**.
-    - The app will initialize the Recorder SDK and start recording.
-
-3.  **Recording & Transcription**:
-    - The "Activity Logs" panel will show connection status.
-    - Valid transcriptions will appear in the "Transcriptions" tab in real-time.
-
-4.  **Stop Session**:
-    - Click **"Stop Session"** to end the recording.
-    - Verification: Check your Callback URL to see if the session data was posted.
-
-5.  **View History**:
-    - Click the **History** icon in the sidebar to view past sessions.
-    - Browse recordings in the left list and watch playback/insights in the right pane.
+This starts both the Python backend (with Cloudflare tunnel) and the Electron app.
 
 ## Project Structure
 
-- `server/`: Python FastAPI backend. Handles authentication, token generation, and database interactions.
-- `scripts/`: Shell scripts for starting the server (`start-server.sh`) and maintenance.
-- `frontend/`: Electron frontend source (moved from root).
-- `frontend/main.js`: Electron main process. Orchestrates the app lifecycle and communicates with the local backend.
-- `frontend/renderer.js`: Electron renderer process (Frontend). Orchestrates the UI.
-- `frontend/src/ui/`: Modular UI components (`auth-modal.js`, `wizard.js`, `transcription.js`).
-- `frontend/src/utils/`: Shared utilities (`permissions.js`, `logger.js`).
+```
+sales-copilot/
+├── frontend/           # Electron app
+│   ├── main.js         # Main process (IPC, Capture SDK)
+│   ├── renderer.js     # Renderer process (UI logic)
+│   ├── preload.js      # Context bridge APIs
+│   └── src/
+│       ├── ui/         # UI modules (sidebar, wizard, history)
+│       └── styles/     # CSS modules
+├── server/             # FastAPI backend
+│   └── app/
+│       ├── api/        # Routes & webhook handler
+│       ├── core/       # Config & tunnel manager
+│       ├── db/         # SQLite models
+│       └── services/   # VideoDB integration
+└── scripts/
+    ├── setup.sh        # One-time setup
+    └── start-server.sh # Start backend
+```
 
-## Deployment
+## How It Works
 
-You can deploy the backend server to your own infrastructure (e.g., AWS, GCP, Heroku) instead of running it locally.
+1. **Setup**: `setup.sh` saves your API key and installs dependencies
+2. **Start**: `npm start` launches the backend, starts Cloudflare tunnel, writes `runtime.json`
+3. **Connect**: Electron reads `runtime.json` to discover the backend URL
+4. **Record**: Capture SDK streams media to VideoDB
+5. **Webhook**: `capture_session.exported` event triggers recording save
+6. **Insights**: Background task indexes video and generates AI insights
 
-1.  **Deploy the Server**:
-    - Build and deploy the Python app located in `server/`.
-    - Ensure it is accessible via HTTPS.
+## Environment Variables
 
-2.  **Configure the Electron App**:
-    - Create a `runtime.json` file in the root of the Electron app (or update your build process to generate it) with your production URL:
-      ```json
-      {
-        "api_url": "https://your-backend-service.com",
-        "webhook_url": "https://your-backend-service.com/api/webhook"
-      }
-      ```
-    - Alternatively, modify `main.js` to look for environment variables or a hardcoded URL for production builds.
+Copy `.env.example` to `.env` to customize:
 
-## Troubleshooting
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_PORT` | `8000` | Backend server port |
+| `WEBHOOK_URL` | Auto | Override tunnel URL (for production) |
 
-### Python Issues
+## Permissions (macOS)
 
-- **Python version errors**: The app uses `uv` to automatically install Python 3.12. If you see version-related errors, ensure you have internet access for the first run.
-- **Package installation fails**: Try deleting `server/venv` and running `npm start` again to recreate the virtual environment.
+The app requires:
+- **Microphone** - For audio capture
+- **Screen Recording** - For screen capture
 
-### Tunnel Issues
+Grant these in **System Settings > Privacy & Security**.
 
-### Tunnel Issues
+## License
 
-- **Ngrok Auth Required**: The app uses [ngrok](https://ngrok.com) for secure tunneling. On the first run, you will be prompted to enter your **Ngrok Authtoken**.
-  - Get your token for free at **[dashboard.ngrok.com](https://dashboard.ngrok.com/get-started/your-authtoken)**.
-  - The app saves this token for future sessions.
-- **Tunnel Error**: If the tunnel fails to start, check the "Activity Logs" in the app or the terminal output for error details.
-
-### Permissions (macOS)
-
-- **Permissions Denied**: Go to **System Settings > Privacy & Security > Screen Recording** (or Microphone) and enable the app. Restart after changing permissions.
-- **Notifications Not Showing**: Go to **System Settings > Notifications > Electron** and ensure "Allow Notifications" is ON.
-
-## FAQ
-
-### How are insights generated?
-The app uses **VideoDB's `generate_text()` SDK method** to analyze the meeting transcript. It generates a comprehensive **Markdown Report** containing an executive summary, key discussion points, action items, and decisions. This happens automatically after the video is indexed.
-
-### Where is my data stored?
-- **Video & Audio**: Streamed and stored securely in your VideoDB collection.
-- **User Keys**: Stored locally in a SQLite database (`users.db`) on your machine.
-- **Application Logs**: Stored locally in the `logs/` directory.
-
-### Why do I see "Video playback not supported"?
-The app uses HLS streaming. If you see this message, ensure you are connected to the internet, as the video is streamed directly from VideoDB's servers.
-
+MIT

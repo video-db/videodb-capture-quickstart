@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose Recorder SDK API to renderer process
+// Expose Capture SDK API to renderer process
 contextBridge.exposeInMainWorld('recorderAPI', {
     startSession: (sessionId, config) => ipcRenderer.invoke('recorder-start-recording', sessionId, config),
     stopSession: (sessionId) => ipcRenderer.invoke('recorder-stop-recording', sessionId),

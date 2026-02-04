@@ -1,46 +1,39 @@
-# Contributing to Meeting Copilot
-
-Thank you for your interest in contributing to the Meeting Copilot app! We welcome contributions from the community.
+# Contributing
 
 ## Getting Started
 
-1.  **Fork the repository** on GitHub.
-2.  **Clone your fork** locally:
-    ```bash
-    git clone https://github.com/video-db/recorder-quickstart.git
-    cd recorder-quickstart/apps/electron-meeting-copilot
-    ```
-3.  **Install dependencies**:
-    ```bash
-    npm install
-    ```
-4.  **Create a branch** for your feature or fix:
-    ```bash
-    git checkout -b feature/amazing-feature
-    ```
+1. Fork and clone the repository:
+   ```bash
+   git clone https://github.com/video-db/videodb-capture-quickstart.git
+   cd videodb-capture-quickstart/apps/electron/sales-copilot
+   ```
 
-## Development Workflow
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
+3. Run the app:
+   ```bash
+   npm start
+   ```
 
-- **Run the app**: `npm start`
-    - This will automatically set up the Python environment in `server/venv` and start both the backend and frontend.
-- **Backend Development**: The Python FastAPI backend is located in `server/`. Changes to python files will auto-reload the backend server.
-- **Linting**: Ensure your code follows the existing style. We currently use standard ESLint configuration for Electron apps.
+## Project Structure
+
+- `frontend/` - Electron app (main process, renderer, UI modules)
+- `server/` - FastAPI backend (auth, webhooks, VideoDB integration)
+- `scripts/` - Setup and startup scripts
 
 ## Submitting Changes
 
-1.  **Commit your changes** with clear, descriptive messages.
-2.  **Push to your fork**:
-    ```bash
-    git push origin feature/amazing-feature
-    ```
-3.  **Open a Pull Request** (PR) against the `main` branch of the original repository.
-4.  Describe your changes in the PR description, linking to any relevant issues.
+1. Create a branch: `git checkout -b feature/your-feature`
+2. Make your changes
+3. Open a Pull Request against `main`
 
 ## Reporting Issues
 
-If you find a bug or have a feature request, please open an issue on the [GitHub repository](https://github.com/video-db/recorder-quickstart/issues). Provide as much detail as possible, including steps to reproduce the issue.
+Open an issue at [github.com/video-db/videodb-capture-quickstart/issues](https://github.com/video-db/videodb-capture-quickstart/issues)
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+MIT

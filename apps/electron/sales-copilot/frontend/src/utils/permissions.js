@@ -32,7 +32,7 @@ export const permissionUtil = {
     async request(type) {
         try {
             if (type === 'screen') {
-                // Use Recorder SDK for screen permission
+                // Use Capture SDK for screen permission
                 await window.recorderAPI.requestPermission('screen-capture');
                 // Check status after request
                 return await this.check(type);
