@@ -163,14 +163,31 @@ def callback():
                 f"   🎤 Mics: {len(mics)} | 🔊 System Audio: {len(system_audios)} | 📺 Displays: {len(displays)}"
             )
 
-            # 3. Start AI on System Audio (Prioritized over Mic for quickstart)
-            if system_audios:
+            # 3. Start AI on Microphone (Prioritized for Voice Interaction)
+            if mics:
+                mic = mics[0]
+                print(f"   🎤 Indexing microphone: {mic.id}")
+
+                # Start a WS listener for this stream
+                q = queue.Queue()
+                start_ws_listener(q, name="AudioWatcher")
+                ws_id = q.get(timeout=10)
+
+                mic.start_transcript(ws_connection_id=ws_id)
+                mic.index_audio(
+                    prompt="Extract key decisions and action items",
+                    ws_connection_id=ws_id,
+                )
+                print(f"   ✅ Mic indexing started (socket: {ws_id})")
+
+            # 4. Start AI on System Audio (Fallback)
+            elif system_audios:
                 sys_audio = system_audios[0]
                 print(f"   🔊 Indexing system audio: {sys_audio.id}")
 
                 # Start a WS listener for this stream
                 q = queue.Queue()
-                start_ws_listener(q, name="AudioWatcher")
+                start_ws_listener(q, name="SysAudioWatcher")
                 ws_id = q.get(timeout=10)
 
                 sys_audio.start_transcript(ws_connection_id=ws_id)
