@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resonant</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: transparent;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .container {
+      background: rgba(30, 30, 30, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      max-height: 100vh;
+    }
+
+    .header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .logo img {
+      width: 36px;
+      height: 36px;
+      filter: invert(1) brightness(1.2);
+    }
+
+    .logo-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #666;
+    }
+
+    .status-dot.active {
+      background: #34c759;
+      box-shadow: 0 0 8px #34c759;
+    }
+
+    .status-text {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .capture-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .capture-btn:hover:not(:disabled) {
+      transform: scale(1.02);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .capture-btn.stop {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+
+    .capture-btn.loading {
+      background: linear-gradient(135deg, #a8a8a8 0%, #888 100%);
+      cursor: wait;
+    }
+
+    .capture-btn:disabled {
+      opacity: 0.8;
+      cursor: wait;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .content {
+      padding: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .content::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 8px 12px;
+    }
+
+    .recommendations {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .card:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(102, 126, 234, 0.5);
+      transform: translateX(4px);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .card-reason {
+      font-size: 12px;
+      color: #888;
+      line-height: 1.4;
+      padding-left: 14px;
+    }
+
+    .card-url {
+      font-size: 11px;
+      color: #667eea;
+      margin-top: 8px;
+      padding-left: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-state-text {
+      font-size: 14px;
+      color: #888;
+    }
+
+    .empty-state-subtext {
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+    }
+
+    .footer {
+      padding: 12px 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-text {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .kbd {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <img src="../assets/icon.png" alt="Resonant">
+        <span class="logo-text">Resonant</span>
+      </div>
+      <div class="status">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">Idle</span>
+        <button class="capture-btn" id="captureBtn">Start Capture</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="recommendationsContainer">
+        <div class="empty-state">
+          <div class="empty-state-icon">🎯</div>
+          <div class="empty-state-text">No recommendations yet</div>
+          <div class="empty-state-subtext">Start capture to get personalized content</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span class="footer-text">Content that resonates with you</span>
+      <span class="kbd">ESC to close</span>
+    </div>
+  </div>
+
+  <script>
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const captureBtn = document.getElementById('captureBtn');
+    const recommendationsContainer = document.getElementById('recommendationsContainer');
+
+    let isCapturing = false;
+
+    // Handle capture button
+    captureBtn.addEventListener('click', () => {
+      if (isCapturing) {
+        window.resonant.stopCapture();
+      } else {
+        window.resonant.startCapture();
+      }
+    });
+
+    // Handle capturing status updates
+    window.resonant.onCapturingStatus((status) => {
+      if (status === 'loading') {
+        // Show loading state
+        statusText.textContent = 'Starting...';
+        captureBtn.innerHTML = '<span class="spinner"></span>Starting...';
+        captureBtn.classList.add('loading');
+        captureBtn.classList.remove('stop');
+        captureBtn.disabled = true;
+        isCapturing = false;
+      } else if (status === true) {
+        // Recording started
+        isCapturing = true;
+        statusDot.classList.add('active');
+        statusText.textContent = 'Recording';
+        captureBtn.innerHTML = 'Stop';
+        captureBtn.classList.remove('loading');
+        captureBtn.classList.add('stop');
+        captureBtn.disabled = false;
+      } else {
+        // Stopped
+        isCapturing = false;
+        statusDot.classList.remove('active');
+        statusText.textContent = 'Idle';
+        captureBtn.innerHTML = 'Start Capture';
+        captureBtn.classList.remove('stop', 'loading');
+        captureBtn.disabled = false;
+      }
+    });
+
+    // Handle recommendations updates
+    window.resonant.onRecommendations((recommendations) => {
+      if (recommendations.length === 0) {
+        recommendationsContainer.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🎯</div>
+            <div class="empty-state-text">No recommendations yet</div>
+            <div class="empty-state-subtext">Keep working, recommendations will appear soon</div>
+          </div>
+        `;
+        return;
+      }
+
+      recommendationsContainer.innerHTML = `
+        <div class="section-title">Recommended for you</div>
+        <div class="recommendations">
+          ${recommendations.map(rec => `
+            <div class="card" data-url="${rec.url}">
+              <div class="card-title">${rec.title}</div>
+              <div class="card-reason">${rec.reason}</div>
+              <div class="card-url">${rec.url}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      // Add click handlers to cards
+      document.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('click', () => {
+          const url = card.getAttribute('data-url');
+          if (url) {
+            window.resonant.openUrl(url);
+          }
+        });
+      });
+    });
+
+    // Handle ESC key to close
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        window.resonant.hideWindow();
+      }
+    });
+  </script>
+</body>
+</html>

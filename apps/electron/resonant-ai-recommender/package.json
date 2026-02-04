@@ -1,0 +1,26 @@
+{
+  "name": "resonant",
+  "version": "1.0.0",
+  "description": "Resonant - Content that resonates with your interests and taste",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "mkdir -p dist/renderer && cp src/renderer/index.html dist/renderer/ && cp -r assets dist/",
+    "start": "npm run build && electron .",
+    "dev": "tsc && npm run copy-assets && electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@videodb/recorder": "^0.2.4",
+    "dotenv": "^17.2.3",
+    "videodb": "github:video-db/videodb-node#release-0.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^33.0.0",
+    "typescript": "^5.7.0"
+  }
+}
