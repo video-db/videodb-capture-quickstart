@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__pair-programmer__get_screen_context",
+      "mcp__pair-programmer__get_audio_context",
+      "Skill(trigger)",
+      "Skill(show-overlay)",
+      "Bash(node .claude/skills/pair-programmer/recorder-control.js:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "pair-programmer"
+  ]
+}

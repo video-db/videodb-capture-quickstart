@@ -58,6 +58,7 @@ Location: `.claude/skills/pair-programmer/config.json`
   "webhook_url": "",
   "recorder_port": 8899,
   "context_buffer_size": 50,
+  "assistant_shortcut": "CommandOrControl+Shift+A",
 
   "visual_index": {
     "enabled": true,
@@ -97,6 +98,7 @@ Location: `.claude/skills/pair-programmer/config.json`
 | `webhook_url` | Webhook URL (empty = auto-tunnel) | "" |
 | `recorder_port` | HTTP API port | 8899 |
 | `context_buffer_size` | Max context items | 50 |
+| `assistant_shortcut` | Global shortcut to trigger `/trigger` command | CommandOrControl+Shift+A |
 
 ### Indexing Settings (Advanced)
 
