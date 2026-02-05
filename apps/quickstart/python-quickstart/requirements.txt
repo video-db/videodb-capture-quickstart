@@ -1,4 +1,4 @@
-videodb[capture]==0.4.1
+videodb[capture]==0.4.2
 flask
 pycloudflared
 python-dotenv
