@@ -63,9 +63,9 @@ async def run_capture(token, session_id):
         channels = await client.list_channels()
 
         # Select sources
-        mic = channels.default_mic
-        display = channels.default_display
-        system_audio = channels.default_system_audio
+        mic = channels.mics.default
+        display = channels.displays.default
+        system_audio = channels.system_audio.default
 
         selected_channels = [c for c in [mic, display, system_audio] if c]
         if not selected_channels:
