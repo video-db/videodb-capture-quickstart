@@ -71,6 +71,36 @@
       background: #444;
       border-radius: 3px;
     }
+    .loading-wrap {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 24px 0;
+    }
+    .loading-wrap.visible {
+      display: flex;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loading-text {
+      font-size: 12px;
+      color: #86868b;
+    }
+    .content.loading-hidden {
+      display: none;
+    }
     .status {
       margin-top: 12px;
       padding-top: 12px;
@@ -78,21 +108,46 @@
       font-size: 11px;
       color: #86868b;
     }
+    .status-not-recording {
+      display: none;
+    }
+    .status-not-recording.visible {
+      display: block;
+    }
+    .status-channels {
+      display: none;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      align-items: center;
+    }
+    .status-channels.visible {
+      display: flex;
+    }
+    .channel-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     .status-dot {
       display: inline-block;
       width: 6px;
       height: 6px;
       border-radius: 50%;
       background: #30d158;
-      margin-right: 6px;
+      flex-shrink: 0;
     }
-    .status-dot.recording {
-      background: #ff3b30;
-      animation: pulse 1s infinite;
+    .status-dot.live {
+      animation: blink 1.2s ease-in-out infinite;
     }
-    @keyframes pulse {
+    @keyframes blink {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+      50% { opacity: 0.4; }
+    }
+    .status-starting {
+      display: none;
+    }
+    .status-starting.visible {
+      display: block;
     }
   </style>
 </head>
@@ -102,12 +157,21 @@
       <span class="title">VideoDB Context</span>
       <button class="close-btn" onclick="close()">×</button>
     </div>
+    <div class="loading-wrap" id="loadingWrap">
+      <div class="spinner"></div>
+      <span class="loading-text">Thinking...</span>
+    </div>
     <div class="content" id="content">
       Waiting for context...
     </div>
     <div class="status">
-      <span class="status-dot" id="statusDot"></span>
-      <span id="statusText">Ready</span>
+      <div class="status-not-recording visible" id="statusNotRecording">
+        Type /record in Claude to start recording
+      </div>
+      <div class="status-starting" id="statusStarting">
+        Starting
+      </div>
+      <div class="status-channels" id="statusChannels"></div>
     </div>
   </div>
 
@@ -115,21 +179,42 @@
     const { ipcRenderer } = require('electron');
 
     ipcRenderer.on('overlay-content', (event, data) => {
+      const loadingWrap = document.getElementById('loadingWrap');
       const content = document.getElementById('content');
-      content.textContent = data.text || 'No content';
-      content.scrollTop = content.scrollHeight;
+      if (data.loading) {
+        loadingWrap.classList.add('visible');
+        content.classList.add('loading-hidden');
+      } else {
+        loadingWrap.classList.remove('visible');
+        content.classList.remove('loading-hidden');
+        content.textContent = data.text || 'No content';
+        content.scrollTop = content.scrollHeight;
+      }
     });
 
     ipcRenderer.on('overlay-status', (event, data) => {
-      const dot = document.getElementById('statusDot');
-      const text = document.getElementById('statusText');
-      
-      if (data.recording) {
-        dot.classList.add('recording');
-        text.textContent = `Recording ${data.duration || ''}`;
+      const notRecordingEl = document.getElementById('statusNotRecording');
+      const startingEl = document.getElementById('statusStarting');
+      const channelsEl = document.getElementById('statusChannels');
+
+      if (data.starting) {
+        notRecordingEl.classList.remove('visible');
+        startingEl.classList.add('visible');
+        channelsEl.classList.remove('visible');
+        channelsEl.innerHTML = '';
+      } else if (data.recording) {
+        notRecordingEl.classList.remove('visible');
+        startingEl.classList.remove('visible');
+        channelsEl.classList.add('visible');
+        const names = (data.channels && data.channels.length) ? data.channels : ['Recording'];
+        channelsEl.innerHTML = names.map(function (name) {
+          return '<div class="channel-item"><span class="status-dot live"></span><span>' + name + '</span></div>';
+        }).join('');
       } else {
-        dot.classList.remove('recording');
-        text.textContent = 'Ready';
+        notRecordingEl.classList.add('visible');
+        startingEl.classList.remove('visible');
+        channelsEl.classList.remove('visible');
+        channelsEl.innerHTML = '';
       }
     });
 

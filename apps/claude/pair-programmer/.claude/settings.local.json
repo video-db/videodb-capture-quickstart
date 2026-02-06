@@ -4,8 +4,11 @@
       "mcp__pair-programmer__get_screen_context",
       "mcp__pair-programmer__get_audio_context",
       "Skill(trigger)",
-      "Skill(show-overlay)",
-      "Bash(node .claude/skills/pair-programmer/recorder-control.js:*)"
+      "Bash(node .claude/skills/pair-programmer/recorder-control.js:*)",
+      "Bash(lsof:*)",
+      "Bash(node:*)",
+      "Skill(record)",
+      "Skill(record-control)"
     ]
   },
   "enableAllProjectMcpServers": true,

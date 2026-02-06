@@ -334,6 +334,7 @@ const {
   BrowserWindow,
   ipcMain,
   systemPreferences,
+  globalShortcut,
 } = require("electron");
 const http = require("http");
 const { spawn, execSync } = require("child_process");
@@ -536,9 +537,27 @@ let wsConnection = null; // WebSocket for real-time events
 // Recording state
 let recording = {
   active: false,
+  starting: false,
   sessionId: null,
   startTime: null,
+  channels: null,
 };
+
+function channelIdToDisplayName(channelId) {
+  if (!channelId) return "unknown";
+  if (channelId.startsWith("mic")) return "mic";
+  if (channelId.startsWith("system_audio")) return "system_audio";
+  if (channelId.startsWith("display")) return "screen";
+  return channelId;
+}
+
+function rtstreamNameToDisplayName(nameOrChannelId) {
+  const s = (nameOrChannelId || "").toLowerCase();
+  if (s === "mic" || s.startsWith("mic")) return "mic";
+  if (s === "system_audio" || s.includes("system_audio")) return "system_audio";
+  if (s === "display" || s === "screen" || s.startsWith("display")) return "screen";
+  return s || "unknown";
+}
 
 // Runtime indexing config (overrides defaults from INDEXING_CONFIG)
 let runtimeIndexingConfig = null;
@@ -589,13 +608,24 @@ const contextBuffer = {
     };
   },
 
+  _filterFinalPlusLastNonFinal(arr) {
+    const isNonFinal = (r) => r.isFinal === false || r.isFinal === "false";
+    const finals = arr.filter((r) => !isNonFinal(r));
+    const lastNonFinal = [...arr].reverse().find(isNonFinal);
+    if (lastNonFinal) finals.push(lastNonFinal);
+    return finals;
+  },
+
   // Write context to shared file for MCP server
   _writeToFile() {
     try {
+      const micForFile = this._filterFinalPlusLastNonFinal(this.mic);
+      const systemAudioForFile = this._filterFinalPlusLastNonFinal(this.system_audio);
+
       const data = {
         screen: this.screen,
-        system_audio: this.system_audio,
-        mic: this.mic,
+        system_audio: systemAudioForFile,
+        mic: micForFile,
         recording: {
           active: recording.active,
           sessionId: recording.sessionId,
@@ -682,7 +712,8 @@ function setupCaptureClientEvents() {
     recording.sessionId = captureSession.id;
     recording.startTime = Date.now();
     updateTray();
-    
+    pushOverlayStatus();
+
     // NOTE: Don't start indexing here!
     // Wait for webhook `capture_session.active` event, then start indexing
     console.log("Waiting for session to become active via webhook...");
@@ -691,8 +722,11 @@ function setupCaptureClientEvents() {
   captureClient.on("recording:stopped", (data) => {
     console.log("Recording stopped:", data);
     recording.active = false;
+    recording.starting = false;
     recording.startTime = null;
+    recording.channels = null;
     updateTray();
+    pushOverlayStatus();
 
     // Close WebSocket
     if (wsConnection) {
@@ -704,7 +738,10 @@ function setupCaptureClientEvents() {
   captureClient.on("recording:error", (data) => {
     console.error("Recording error:", data);
     recording.active = false;
+    recording.starting = false;
+    recording.channels = null;
     updateTray();
+    pushOverlayStatus();
   });
 
   captureClient.on("transcript", (data) => {
@@ -849,10 +886,15 @@ async function listenToWebSocketEvents() {
 
       if (channel === "transcript") {
         const text = ev.data?.text;
-        console.log(`[WS] Transcript: ${text?.substring(0, 50)}...`);
-        contextBuffer.add("mic", {
+        const transcriptType = (ev.rtstream_name || "").includes("system")
+          ? "system_audio"
+          : "mic";
+        const rawFinal = ev.data?.is_final;
+        const isFinal = rawFinal === true || rawFinal === "true";
+        console.log(`[WS] Transcript (${transcriptType}): ${text?.substring(0, 50)}...`);
+        contextBuffer.add(transcriptType, {
           text: text,
-          isFinal: ev.data?.is_final,
+          isFinal,
         });
       } else if (channel === "visual_index") {
         const text = ev.data?.text;
@@ -869,7 +911,8 @@ async function listenToWebSocketEvents() {
         console.log(`[WS] Audio (${type}): ${text?.substring(0, 50)}...`);
         contextBuffer.add(type, { text: text, start: ev.data?.start });
       } else if (channel === "capture_session") {
-        console.log("[WS] Session status:", ev.data?.status);
+        const status = ev.data?.status;
+        console.log("[WS] capture_session:", status || ev.data);
       } else {
         console.log("[WS] Unknown event:", channel, ev);
       }
@@ -930,13 +973,14 @@ async function startRecording(selectedChannels, indexingConfigOverride = null) {
       }));
     }
 
-    // Start capture
+    recording.channels = channels.map((c) => channelIdToDisplayName(c.channelId));
+
     const capturePayload = {
       sessionId: captureSession.id,
       channels,
     };
     console.log("Starting capture with payload:", JSON.stringify(capturePayload, null, 2));
-    
+
     await captureClient.startCaptureSession(capturePayload);
 
     return { status: "ok", sessionId: captureSession.id };
@@ -1090,16 +1134,31 @@ function createOverlayWindow() {
   return overlayWindow;
 }
 
-function showOverlay(text) {
+function pushOverlayStatus() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  const duration = recording.startTime
+    ? Math.round((Date.now() - recording.startTime) / 1000)
+    : 0;
+  overlayWindow.webContents.send("overlay-status", {
+    recording: recording.active,
+    starting: recording.starting,
+    duration,
+    channels: recording.channels || [],
+  });
+}
+
+function showOverlay(text, options = {}) {
+  const loading = options.loading === true;
+  const payload = { text: text != null ? String(text) : "", loading };
   const win = createOverlayWindow();
-  if (text) {
-    win.webContents.on("did-finish-load", () => {
-      win.webContents.send("overlay-content", { text });
-    });
-    if (!win.webContents.isLoading()) {
-      win.webContents.send("overlay-content", { text });
-    }
-  }
+
+  const send = () => {
+    win.webContents.send("overlay-content", payload);
+    pushOverlayStatus();
+  };
+  win.webContents.once("did-finish-load", send);
+  if (!win.webContents.isLoading()) send();
+
   return { status: "ok" };
 }
 
@@ -1109,6 +1168,14 @@ function hideOverlay() {
     overlayWindow = null;
   }
   return { status: "ok" };
+}
+
+function showReadyScreen() {
+  const shortcut = config.assistant_shortcut;
+  const message = shortcut
+    ? `Ask your question in the mic, then press ${shortcut} to let me answer it.`
+    : "Set assistant_shortcut in config to use the assistant.";
+  showOverlay(message);
 }
 
 ipcMain.on("overlay-close", () => hideOverlay());
@@ -1294,6 +1361,9 @@ function createTray() {
 // =============================================================================
 
 function startAPIServer() {
+  try {
+    if (fs.existsSync(CONTEXT_FILE)) fs.unlinkSync(CONTEXT_FILE);
+  } catch (_) {}
   const server = http.createServer(async (req, res) => {
     const url = req.url.split("?")[0];
     
@@ -1325,7 +1395,7 @@ function startAPIServer() {
             "GET /api/status": "Get recording status",
             "POST /api/record/start": "Start recording",
             "POST /api/record/stop": "Stop recording",
-            "POST /api/overlay/show": "Show overlay { text: string }",
+            "POST /api/overlay/show": "Show overlay { text?: string, loading?: boolean }",
             "POST /api/overlay/hide": "Hide overlay",
             "GET /api/context/:type": "Get context (screen/mic/system_audio/all)",
             "POST /webhook": "VideoDB webhook endpoint",
@@ -1388,7 +1458,7 @@ function startAPIServer() {
       } else if (url === "/api/record/stop" && req.method === "POST") {
         result = await stopRecording();
       } else if (url === "/api/overlay/show" && req.method === "POST") {
-        result = showOverlay(body.text);
+        result = showOverlay(body.text, { loading: body.loading });
       } else if (url === "/api/overlay/hide" && req.method === "POST") {
         result = hideOverlay();
       } else if (url.startsWith("/api/context/")) {
@@ -1449,11 +1519,16 @@ async function handleWebhookEvent(body) {
     // Start indexing if we have a session and haven't started already
     if (isOurSession && !wsConnection) {
       // Mark recording as active (webhook arrived before local event)
+      recording.starting = false;
       recording.active = true;
       recording.sessionId = sessionId;
       recording.startTime = recording.startTime || Date.now();
+      const channelNames = rtstreams.map((r) =>
+        rtstreamNameToDisplayName(r.name || r.channel_id)
+      );
+      recording.channels = [...new Set(channelNames)];
       updateTray();
-      
+      pushOverlayStatus();
       await startIndexingForRTStreams(rtstreams);
     } else if (!isOurSession) {
       console.log(`[Webhook] Not our session (expected: ${captureSession?.id}, got: ${sessionId}), skipping`);
@@ -1463,17 +1538,84 @@ async function handleWebhookEvent(body) {
   } else if (eventType === "capture_session.stopped" || eventType === "recorder.session.stopped") {
     console.log("[Webhook] Session stopped");
     recording.active = false;
+    recording.starting = false;
     recording.sessionId = null;
+    recording.channels = null;
     updateTray();
-    
+    pushOverlayStatus();
     if (wsConnection) {
       await wsConnection.close();
       wsConnection = null;
     }
   } else if (eventType === "capture_session.created") {
     console.log("[Webhook] Session created");
+  } else if (eventType === "capture_session.starting") {
+    console.log("[Webhook] Session starting");
+    recording.starting = true;
+    pushOverlayStatus();
+  } else if (eventType === "capture_session.stopping") {
+    console.log("[Webhook] Session stopping");
+  } else if (eventType === "capture_session.exported") {
+    const exportedId = body.data?.exported_video_id;
+    console.log("[Webhook] Session exported", exportedId ? `video_id: ${exportedId}` : "");
+  } else if (eventType === "capture_session.failed") {
+    console.error("[Webhook] Session failed:", body.data?.error || body.data);
+    recording.active = false;
+    recording.starting = false;
+    recording.sessionId = null;
+    recording.channels = null;
+    updateTray();
+    pushOverlayStatus();
+    if (wsConnection) {
+      await wsConnection.close();
+      wsConnection = null;
+    }
   } else {
     console.log(`[Webhook] Unhandled event type: ${eventType}`);
+  }
+}
+
+// =============================================================================
+// Assistant Shortcut
+// =============================================================================
+
+function registerAssistantShortcut() {
+  const shortcut = config.assistant_shortcut;
+  if (!shortcut) {
+    console.log("No assistant_shortcut configured, skipping");
+    return;
+  }
+
+  const registered = globalShortcut.register(shortcut, () => {
+    console.log(`[Assistant] Shortcut ${shortcut} triggered`);
+    spawn("node", [path.join(__dirname, "recorder-control.js"), "overlay-show", "--loading"], {
+      stdio: "ignore",
+      env: { ...process.env, RECORDER_PORT: String(API_PORT) },
+    });
+
+    console.log("[Assistant] Running claude -c -p '/trigger' ...");
+    const child = spawn("claude", ["-c", "-p", "/trigger"], {
+      stdio: "inherit",
+      shell: false,
+    });
+
+    child.on("error", (err) => {
+      console.error("[Assistant] Failed to run claude:", err.message);
+      new Notification({
+        title: "Assistant Error",
+        body: "Failed to run claude command",
+      }).show();
+    });
+
+    child.on("close", (code) => {
+      console.log(`[Assistant] claude exited with code ${code}`);
+    });
+  });
+
+  if (registered) {
+    console.log(`✓ Assistant shortcut registered: ${shortcut}`);
+  } else {
+    console.error(`✗ Failed to register shortcut: ${shortcut}`);
   }
 }
 
@@ -1523,6 +1665,11 @@ app.whenReady().then(async () => {
 
     createTray();
 
+    // Register global shortcut for assistant
+    registerAssistantShortcut();
+
+    showReadyScreen();
+
     new Notification({
       title: "VideoDB Recorder",
       body: webhookUrl
@@ -1543,6 +1690,9 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", async () => {
+  // Unregister shortcuts
+  globalShortcut.unregisterAll();
+  
   if (captureClient) {
     try {
       await captureClient.stopCaptureSession();

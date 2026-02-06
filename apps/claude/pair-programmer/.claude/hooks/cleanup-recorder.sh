@@ -1,5 +1,21 @@
 #!/bin/bash
 # cleanup-recorder.sh - SessionEnd hook to stop recorder when session ends
+# Only runs when reason is prompt_input_exit (e.g. one-off claude -c -p). Skips
+# other/logout/clear so interactive session exits don't stop the recorder.
+#
+# Hook input: Claude Code sends JSON on stdin when SessionEnd fires. We don't send it;
+# see https://docs.claude.com/docs/en/hooks (SessionEnd input schema).
+
+INPUT=$(cat)
+LOG="/tmp/session-end.log"
+REASON=$(echo "$INPUT" | jq -r '.reason // ""' 2>/dev/null)
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) reason=$REASON" >> "$LOG"
+echo "$INPUT" | jq -c . >> "$LOG" 2>/dev/null || echo "$INPUT" >> "$LOG"
+
+case "$REASON" in
+  prompt_input_exit) ;;
+  *) exit 0 ;;
+esac
 
 PROJECT_DIR="$CLAUDE_PROJECT_DIR"
 CONFIG_FILE="$PROJECT_DIR/.claude/skills/pair-programmer/config.json"
