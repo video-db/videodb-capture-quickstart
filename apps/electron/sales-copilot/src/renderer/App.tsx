@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { MainContent } from './components/layout/MainContent';
-import { AuthModal } from './components/auth/AuthModal';
+import { AuthView } from './components/auth/AuthView';
 import { StreamToggles } from './components/recording/StreamToggles';
 import { TopStatusBar } from './components/recording/TopStatusBar';
 import { TranscriptionPanel } from './components/transcription/TranscriptionPanel';
 import { HistoryView } from './components/history/HistoryView';
 import { useConfigStore } from './stores/config.store';
-import { useSessionStore } from './stores/session.store';
 import { useSession } from './hooks/useSession';
 import { usePermissions } from './hooks/usePermissions';
 import { useGlobalRecorderEvents } from './hooks/useGlobalRecorderEvents';
@@ -15,9 +14,8 @@ import { useCopilot } from './hooks/useCopilot';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
-import { AlertCircle, Shield, BookOpen, X, Mic, Users, Gauge } from 'lucide-react';
+import { AlertCircle, Shield, BookOpen, X, Mic, Users, Gauge, Loader2 } from 'lucide-react';
 import {
-  MetricsPanel,
   CueCardOverlay,
   PlaybookPanel,
   NudgeToast,
@@ -219,10 +217,11 @@ function MetricsSidebar() {
 
 function RecordingView() {
   const [showPlaybookModal, setShowPlaybookModal] = useState(false);
-  const { isCallActive, callSummary, isInitialized, playbook } = useCopilotStore();
+  const { isCallActive, callSummary, playbook } = useCopilotStore();
   const { status, streams, toggleStream, isStarting, isStopping } = useSession();
 
   const isRecording = status === 'recording';
+  const isProcessing = status === 'processing' || status === 'stopping';
 
   useCopilot();
 
@@ -241,6 +240,28 @@ function RecordingView() {
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <CallSummaryView />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show processing state while generating summary (only after recording stopped)
+  if (isProcessing) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <TopStatusBar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Generating Call Summary</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Analyzing your conversation and preparing insights...
+              </p>
             </div>
           </div>
         </div>
@@ -395,7 +416,6 @@ function SettingsView() {
 
 export function App() {
   const [activeTab, setActiveTab] = useState<Tab>('recording');
-  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const configStore = useConfigStore();
   const { allGranted, loading: permissionsLoading } = usePermissions();
@@ -404,12 +424,6 @@ export function App() {
   useGlobalRecorderEvents();
 
   const isAuthenticated = configStore.isAuthenticated();
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-    }
-  }, [isAuthenticated]);
 
   const getTitle = () => {
     switch (activeTab) {
@@ -424,11 +438,7 @@ export function App() {
 
   const renderContent = () => {
     if (!isAuthenticated) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">Please sign in to continue</p>
-        </div>
-      );
+      return <AuthView />;
     }
 
     if (permissionsLoading) {
@@ -472,8 +482,6 @@ export function App() {
           </div>
         </div>
 
-        <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
-
         {/* Global Copilot Components */}
         <NudgeToast position="bottom" />
       </div>
@@ -494,8 +502,6 @@ export function App() {
         {isAuthenticated && <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />}
         <MainContent title={getTitle()}>{renderContent()}</MainContent>
       </div>
-
-      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
 
       {/* Global Copilot Components */}
       {isAuthenticated && <NudgeToast position="bottom" />}

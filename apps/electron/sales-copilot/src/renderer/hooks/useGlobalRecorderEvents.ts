@@ -86,8 +86,9 @@ export function useGlobalRecorderEvents() {
           break;
 
         case 'upload:complete':
-          console.log('[GlobalRecorderEvents] Upload complete, resetting session');
-          session.stopSession(); // This resets status to idle and clears session info
+          // Don't reset session here - let stopRecording() handle the transition
+          // after copilot summary generation completes
+          console.log('[GlobalRecorderEvents] Upload complete (stopRecording will handle state transition)');
           break;
 
         case 'error':

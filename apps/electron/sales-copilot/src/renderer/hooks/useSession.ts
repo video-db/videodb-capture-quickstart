@@ -179,8 +179,9 @@ export function useSession() {
         copilotState.endCall();
       }
 
-      // Event handlers drive the status transitions (recording → processing → idle)
+      // Transition session to idle now that all work (including copilot) is complete
       sessionStore.setElapsedTime(0);
+      sessionStore.stopSession();
     } catch (error) {
       sessionStore.setError(error instanceof Error ? error.message : 'Failed to stop recording');
       sessionStore.stopSession();

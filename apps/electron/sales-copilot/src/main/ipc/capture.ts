@@ -401,6 +401,13 @@ export function setupCaptureHandlers(): void {
             event: 'recording:stopped',
             data: {},
           });
+
+          // Manually emit upload:complete since we've already shutdown the client
+          // (the SDK event listener was removed before upload could complete)
+          sendRecorderEvent({
+            event: 'upload:complete',
+            data: {},
+          });
         } else {
           logger.warn('No active capture client to stop');
         }
