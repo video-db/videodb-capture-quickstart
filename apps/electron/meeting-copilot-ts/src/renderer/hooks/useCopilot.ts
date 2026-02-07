@@ -9,9 +9,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useCopilotStore } from '../stores/copilot.store';
 import { useConfigStore } from '../stores/config.store';
 
-// ============================================================================
 // Hook
-// ============================================================================
 
 export function useCopilot() {
   const {

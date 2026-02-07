@@ -28,9 +28,7 @@ import { useCopilotStore } from '../../stores/copilot.store';
 import { cn } from '../../lib/utils';
 import type { CopilotPlaybookItem, CopilotPlaybookSnapshot } from '../../../shared/types/ipc.types';
 
-// ============================================================================
 // Sub-components
-// ============================================================================
 
 function CoverageProgress({ snapshot }: { snapshot: CopilotPlaybookSnapshot }) {
   const { covered, partial, missing, total, coveragePercentage } = snapshot;
@@ -161,9 +159,7 @@ function PlaybookItemRow({ item, isExpanded, onToggle }: PlaybookItemRowProps) {
   );
 }
 
-// ============================================================================
 // Main Component
-// ============================================================================
 
 interface PlaybookPanelProps {
   className?: string;

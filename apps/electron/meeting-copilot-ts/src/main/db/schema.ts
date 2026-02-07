@@ -1,9 +1,7 @@
 import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
-// ============================================================================
 // Core Tables (Existing)
-// ============================================================================
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -33,9 +31,7 @@ export const recordings = sqliteTable('recordings', {
   metricsSnapshot: text('metrics_snapshot'), // JSON: final conversation metrics
 });
 
-// ============================================================================
 // Sales Co-Pilot Tables
-// ============================================================================
 
 /**
  * Transcript Segments
@@ -206,9 +202,7 @@ export const copilotSettings = sqliteTable('copilot_settings', {
   updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 });
 
-// ============================================================================
 // Type Exports
-// ============================================================================
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

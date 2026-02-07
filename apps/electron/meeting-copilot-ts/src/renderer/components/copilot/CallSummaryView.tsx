@@ -14,7 +14,6 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { ScrollArea } from '../ui/scroll-area';
 import {
   FileText,
   Target,
@@ -33,10 +32,6 @@ import {
 import { useCopilotStore } from '../../stores/copilot.store';
 import { cn } from '../../lib/utils';
 import type { CopilotCallSummary, CopilotPlaybookSnapshot } from '../../../shared/types/ipc.types';
-
-// ============================================================================
-// Sub-components
-// ============================================================================
 
 interface SectionProps {
   title: string;
@@ -196,9 +191,7 @@ function NextStepsList({ nextSteps }: { nextSteps: CopilotCallSummary['nextSteps
   );
 }
 
-// ============================================================================
 // Main Component
-// ============================================================================
 
 interface CallSummaryViewProps {
   className?: string;
@@ -280,7 +273,6 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
       </CardHeader>
 
       <CardContent>
-        <ScrollArea className="max-h-[600px] pr-2">
           <div className="space-y-3">
             {/* Risk Flags */}
             {summary.riskFlags && summary.riskFlags.length > 0 && (
@@ -398,7 +390,6 @@ export function CallSummaryView({ className, summary: propSummary, playbook: pro
               </Section>
             )}
           </div>
-        </ScrollArea>
       </CardContent>
     </Card>
   );

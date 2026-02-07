@@ -27,16 +27,13 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = !app.isPackaged;
 
 /**
- * Clean up stale recorder lock files on startup
- * The VideoDB recorder binary creates a lock file to prevent multiple instances
+ * Clean up stale recorder lock files so the recorder can start after crashes.
  */
 function cleanupStaleLockFiles(): void {
-  // Use stable paths that work in both dev and production
-  // Note: process.cwd() is unreliable in packaged Electron apps
+  // Use stable paths because process.cwd() is unreliable in packaged apps.
   const lockFilePaths = [
     getLockFilePath('videodb-recorder.lock'),
     path.join(app.getPath('temp'), 'videodb-recorder.lock'),
-    // Also check common locations the binary might use
     path.join(app.getPath('home'), '.videodb-recorder.lock'),
   ];
 
@@ -58,7 +55,7 @@ async function createWindow(): Promise<void> {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: 'Meeting Copilot',
+    title: 'Sales Copilot',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
@@ -72,14 +69,11 @@ async function createWindow(): Promise<void> {
   setMainWindow(mainWindow);
   setCopilotMainWindow(mainWindow);
 
-  // Load the app
   if (isDev) {
-    // Vite dev server port - matches vite.config.ts
     const VITE_DEV_PORT = 51730;
     await mainWindow.loadURL(`http://localhost:${VITE_DEV_PORT}`);
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, __dirname is dist/main, renderer is at dist/renderer
     await mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   }
 
@@ -184,7 +178,6 @@ async function autoRegister(): Promise<void> {
 
       logger.info({ name }, 'Auto-registration successful');
 
-      // Notify renderer of successful auth
       if (mainWindow) {
         sendToRenderer('auth-success', { name, accessToken });
       }
@@ -194,7 +187,6 @@ async function autoRegister(): Promise<void> {
   } catch (error) {
     logger.error({ error }, 'Auto-registration error');
   } finally {
-    // Delete auth config regardless of outcome
     deleteAuthConfig();
   }
 }
@@ -203,13 +195,10 @@ async function startServices(): Promise<void> {
   const runtimeConfig = loadRuntimeConfig();
   const port = runtimeConfig.apiPort;
 
-  // Initialize database
   initDatabase();
 
-  // Start HTTP server (will retry ports if in use)
   const actualPort = await startServer(port);
 
-  // Start tunnel for webhooks
   logger.info({ port: actualPort }, '🚇 About to start tunnel service...');
   try {
     const tunnelService = getTunnelService(actualPort);
@@ -230,28 +219,22 @@ async function stopServices(): Promise<void> {
   }
   isShuttingDown = true;
 
-  // Shutdown capture client first (releases binary)
   await shutdownCaptureClient();
 
-  // Stop tunnel
   const tunnelService = getTunnelService(0);
   await tunnelService.stop();
 
-  // Stop HTTP server
   await stopServer();
 
-  // Close database
   closeDatabase();
 
-  // Remove IPC handlers
   removeIpcHandlers();
 }
 
 app.whenReady().then(async () => {
   logger.info('App starting');
 
-  // Apply VideoDB patches only in packaged apps to avoid altering dev behavior
-  // Packaged apps need custom binary paths and DYLD_LIBRARY_PATH
+  // Only packaged apps need VideoDB binary path and DYLD_LIBRARY_PATH patches.
   if (app.isPackaged) {
     try {
       applyVideoDBPatches();
@@ -262,23 +245,17 @@ app.whenReady().then(async () => {
     logger.info('Skipping VideoDB patches in development mode');
   }
 
-  // Clean up any stale lock files from previous crashes
   cleanupStaleLockFiles();
 
   try {
-    // Start backend services
     await startServices();
 
-    // Setup IPC handlers
     setupIpcHandlers();
 
-    // Create menu
     createMenu();
 
-    // Create main window
     await createWindow();
 
-    // Auto-register if auth_config.json exists
     await autoRegister();
 
     logger.info('App started successfully');
@@ -309,7 +286,6 @@ app.on('before-quit', async (event) => {
   }
 });
 
-// Handle terminal signals (Ctrl+C, kill, etc.)
 process.on('SIGINT', async () => {
   logger.info('Received SIGINT (Ctrl+C)');
   await stopServices();

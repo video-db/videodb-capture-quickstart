@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -55,12 +57,13 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -78,7 +81,6 @@
   @apply bg-muted-foreground/50;
 }
 
-/* Drag region for window */
 .drag-region {
   -webkit-app-region: drag;
 }
@@ -87,7 +89,6 @@
   -webkit-app-region: no-drag;
 }
 
-/* Recording pulse animation */
 @keyframes recording-pulse {
   0%, 100% {
     opacity: 1;

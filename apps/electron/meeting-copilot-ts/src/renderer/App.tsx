@@ -44,7 +44,7 @@ function PermissionsView() {
             <CardTitle>Permissions Required</CardTitle>
           </div>
           <CardDescription>
-            Meeting Copilot needs access to record your screen and microphone.
+            Sales Copilot needs access to record your screen and microphone.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -81,7 +81,7 @@ function PermissionsView() {
               <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
                 Screen Recording permission must be granted in System Preferences. Click "Open
-                Settings" and enable Meeting Copilot in the list.
+                Settings" and enable Sales Copilot in the list.
               </p>
             </div>
           )}
@@ -91,7 +91,6 @@ function PermissionsView() {
   );
 }
 
-// Floating Playbook Modal
 function PlaybookModal({
   isOpen,
   onClose,
@@ -127,7 +126,6 @@ function PlaybookModal({
   );
 }
 
-// Compact Metrics Sidebar Panel
 function MetricsSidebar() {
   const { metrics, healthScore, isCallActive } = useCopilotStore();
 
@@ -226,23 +224,24 @@ function RecordingView() {
 
   const isRecording = status === 'recording';
 
-  // Initialize copilot hook to set up event listeners
   useCopilot();
 
   // Show call summary view if call ended and summary available
   if (callSummary && !isCallActive) {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full overflow-hidden">
         <TopStatusBar />
-        <div className="flex-1 overflow-auto p-6">
-          <div className="max-w-4xl mx-auto space-y-4">
-            <div className="flex items-center justify-between">
+        <div className="flex-1 overflow-hidden p-6">
+          <div className="max-w-4xl mx-auto h-full flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h2 className="text-lg font-semibold">Call Complete</h2>
               <Button variant="outline" size="sm" onClick={() => useCopilotStore.getState().reset()}>
                 Start New Call
               </Button>
             </div>
-            <CallSummaryView />
+            <div className="flex-1 min-h-0 overflow-auto">
+              <CallSummaryView />
+            </div>
           </div>
         </div>
       </div>
@@ -375,7 +374,7 @@ function SettingsView() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Meeting Copilot is a desktop app for recording meetings with real-time
+                  Sales Copilot is a desktop app for recording sales calls with real-time
                   transcription and AI-powered insights.
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -459,10 +458,10 @@ export function App() {
     return (
       <div className="flex flex-col h-screen bg-background">
         {/* Shared titlebar for macOS traffic lights */}
-        <div className="h-12 flex items-center border-b bg-background/80 backdrop-blur-lg shrink-0 drag-region">
-          {/* Space for traffic lights */}
-          <div className="w-20 shrink-0" />
-          <span className="text-sm font-medium text-muted-foreground">Meeting Copilot</span>
+        <div className="h-12 flex items-center justify-center border-b bg-background/80 backdrop-blur-lg shrink-0 drag-region relative">
+          {/* Space for traffic lights (absolute so title can center) */}
+          <div className="absolute left-0 w-20 shrink-0" />
+          <span className="text-sm font-medium text-muted-foreground">Sales Copilot</span>
         </div>
 
         {/* Main layout below titlebar */}
@@ -484,10 +483,10 @@ export function App() {
   return (
     <div className="flex flex-col h-screen bg-background">
       {/* Shared titlebar for macOS traffic lights */}
-      <div className="h-12 flex items-center border-b bg-background/80 backdrop-blur-lg shrink-0 drag-region">
-        {/* Space for traffic lights */}
-        <div className="w-20 shrink-0" />
-        <span className="text-sm font-medium text-muted-foreground">Meeting Copilot</span>
+      <div className="h-12 flex items-center justify-center border-b bg-background/80 backdrop-blur-lg shrink-0 drag-region relative">
+        {/* Space for traffic lights (absolute so title can center) */}
+        <div className="absolute left-0 w-20 shrink-0" />
+        <span className="text-sm font-medium text-muted-foreground">Sales Copilot</span>
       </div>
 
       {/* Main layout below titlebar */}

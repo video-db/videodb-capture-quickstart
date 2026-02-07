@@ -12,9 +12,7 @@ import type { TranscriptSegmentData } from './transcript-buffer.service';
 
 const log = logger.child({ module: 'context-manager' });
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export interface CompressedChunk {
   id: number; // chunk number (0, 1, 2...)
@@ -36,9 +34,7 @@ export interface ContextBuilderOptions {
   recentWindowSize?: number;
 }
 
-// ============================================================================
 // Context Manager Service
-// ============================================================================
 
 export class ContextManagerService {
   private compressedHistory: Map<string, CompressedChunk[]> = new Map(); // sessionId -> chunks
@@ -243,9 +239,7 @@ Respond with JSON:
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: ContextManagerService | null = null;
 

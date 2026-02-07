@@ -12,8 +12,7 @@ const logger = createChildLogger('ipc-capture');
 let mainWindow: BrowserWindow | null = null;
 let captureClient: CaptureClient | null = null;
 
-// Store bound event handlers so we can remove them later
-// This prevents memory leaks from accumulating event listeners
+// Store bound event handlers so we can remove them later to prevent memory leaks
 const captureEventHandlers: {
   'recording:started'?: () => void;
   'recording:stopped'?: () => void;
@@ -23,15 +22,10 @@ const captureEventHandlers: {
   'error'?: (error: unknown) => void;
 } = {};
 
-// WebSocket connections for real-time transcripts (like Python meeting-copilot)
 let micWebSocket: WebSocketConnection | null = null;
 let sysAudioWebSocket: WebSocketConnection | null = null;
 let transcriptListenerActive = false;
 
-/**
- * Setup WebSocket connections for real-time transcripts.
- * Returns: { micWsId, sysAudioWsId } or null if failed
- */
 async function setupTranscriptWebSockets(
   sessionToken: string,
   apiUrl?: string
@@ -42,14 +36,12 @@ async function setupTranscriptWebSockets(
       return null;
     }
 
-    // Connect using session token (like Python version)
     const connectOptions: { sessionToken: string; baseUrl?: string } = { sessionToken };
     if (apiUrl) {
       connectOptions.baseUrl = apiUrl;
     }
     const videodbConnection = connect(connectOptions);
 
-    // Create two WebSocket connections (one for mic, one for system audio)
     const [micWsResult, sysWsResult] = await Promise.all([
       (async () => {
         try {
@@ -91,9 +83,6 @@ async function setupTranscriptWebSockets(
   }
 }
 
-/**
- * Listen for messages on a WebSocket and forward transcripts to renderer.
- */
 async function listenForMessages(ws: WebSocketConnection, source: 'mic' | 'system_audio'): Promise<void> {
   try {
     for await (const msg of ws.receive()) {
@@ -105,27 +94,16 @@ async function listenForMessages(ws: WebSocketConnection, source: 'mic' | 'syste
         const msgData = msg.data as Record<string, unknown>;
         const text = (msgData.text || msg.text || '') as string;
         const isFinal = (msgData.is_final ?? msg.is_final ?? msg.isFinal ?? false) as boolean;
-        const start = (msgData.start ?? msg.start) as number;
-        const end = (msgData.end ?? msg.end) as number;
+      const start = (msgData.start ?? msg.start) as number;
+      const end = (msgData.end ?? msg.end) as number;
 
-        // DEBUG: Log raw WebSocket transcript data
-        if (isFinal) {
-          logger.info({
-            source,
-            text: text.substring(0, 40),
-            start,
-            end,
-            duration: end - start,
-            hasStart: start !== undefined && start !== null,
-            hasEnd: end !== undefined && end !== null,
-            rawMsgData: JSON.stringify(msgData).substring(0, 200),
-          }, '[WS TRANSCRIPT] Final transcript from WebSocket');
+      if (isFinal) {
         }
 
         const transcriptEvent: TranscriptEvent = {
           text,
           isFinal,
-          source, // Use the WebSocket source (mic or system_audio)
+          source,
           start,
           end,
         };
@@ -143,9 +121,6 @@ async function listenForMessages(ws: WebSocketConnection, source: 'mic' | 'syste
   }
 }
 
-/**
- * Cleanup WebSocket connections
- */
 async function cleanupTranscriptWebSockets(): Promise<void> {
   transcriptListenerActive = false;
 
@@ -186,14 +161,10 @@ function sendRecorderEvent(event: RecorderEvent): void {
   sendToRenderer('recorder-event', event);
 }
 
-/**
- * Set up event listeners on the CaptureClient with stored references
- * This allows us to properly remove them later to prevent memory leaks
- */
+// Set up event listeners with stored references to prevent memory leaks
 function setupCaptureEventListeners(): void {
   if (!captureClient) return;
 
-  // Create bound handlers and store references
   captureEventHandlers['recording:started'] = () => {
     logger.info('Recording started');
     sendRecorderEvent({ event: 'recording:started' });
@@ -223,7 +194,6 @@ function setupCaptureEventListeners(): void {
     sendRecorderEvent({ event: 'error', data: error });
   };
 
-  // Attach handlers
   captureClient.on('recording:started', captureEventHandlers['recording:started']);
   captureClient.on('recording:stopped', captureEventHandlers['recording:stopped']);
   captureClient.on('recording:error', captureEventHandlers['recording:error']);
@@ -232,19 +202,14 @@ function setupCaptureEventListeners(): void {
   captureClient.on('error', captureEventHandlers['error']);
 }
 
-/**
- * Remove event listeners from the CaptureClient to prevent memory leaks
- */
 function removeCaptureEventListeners(): void {
   if (!captureClient) return;
 
-  // CaptureClient extends EventEmitter, use removeListener which is always available
-  // Cast to unknown first to access EventEmitter methods not in CaptureClient's type definition
+  // Cast to access EventEmitter methods not in CaptureClient's type definition
   const emitter = captureClient as unknown as {
     removeListener: (event: string, listener: (...args: unknown[]) => void) => void;
   };
 
-  // Remove all stored handlers
   if (captureEventHandlers['recording:started']) {
     emitter.removeListener('recording:started', captureEventHandlers['recording:started']);
   }
@@ -264,7 +229,6 @@ function removeCaptureEventListeners(): void {
     emitter.removeListener('error', captureEventHandlers['error']);
   }
 
-  // Clear stored references
   Object.keys(captureEventHandlers).forEach((key) => {
     delete captureEventHandlers[key as keyof typeof captureEventHandlers];
   });
@@ -288,11 +252,8 @@ export function setupCaptureHandlers(): void {
       logger.info({ sessionId: config.sessionId, enableTranscription }, 'Starting recording - IPC handler called');
 
       try {
-        // Register session for webhook processing
-        logger.debug('Registering session user for webhook processing');
         registerSessionUser(config.sessionId, accessToken);
 
-        // Setup WebSocket connections for real-time transcripts (like Python meeting-copilot)
         let wsConnectionIds: { micWsId: string | null; sysAudioWsId: string | null } | null = null;
         if (enableTranscription) {
           wsConnectionIds = await setupTranscriptWebSockets(sessionToken, apiUrl);
@@ -304,8 +265,7 @@ export function setupCaptureHandlers(): void {
           }
         }
 
-        // === PYTHON PATTERN: Create fresh CaptureClient each time ===
-        // Clean up any existing client first
+        // Create fresh CaptureClient each time (Python pattern)
         if (captureClient) {
           logger.info('Cleaning up existing CaptureClient before creating new one');
           removeCaptureEventListeners();
@@ -317,27 +277,22 @@ export function setupCaptureHandlers(): void {
           captureClient = null;
         }
 
-        // === PYTHON PATTERN: Create CaptureClient and list channels ===
-        // Python version: Creates client, sets up events, then calls listChannels()
         logger.info('Creating new CaptureClient');
-          captureClient = new CaptureClient({
+        captureClient = new CaptureClient({
             sessionToken,
             ...(apiUrl && { apiUrl }),
           });
 
-        // Set up ALL event listeners BEFORE listing channels (like Python's setupCaptureClientEvents)
+        // Set up event listeners BEFORE listing channels (Python pattern)
         setupCaptureEventListeners();
 
-        // === PYTHON PATTERN: List channels and find by prefix ===
-        // Python version successfully calls listChannels() and finds channels by prefix
         let captureChannels: Array<{ channelId: string; type: 'audio' | 'video'; record: boolean; transcript?: boolean }> = [];
         
         try {
-          logger.info('Listing available channels (Python pattern)');
+          logger.info('Listing available channels');
           const channels = await captureClient.listChannels();
           logger.info({ channelCount: channels.length }, 'Channels listed successfully');
           
-          // Find channels by prefix/type like Python does
           const micChannel = channels.find(ch => ch.type === 'audio' && ch.channelId.startsWith('mic:'));
           if (micChannel && config.streams?.microphone !== false) {
             captureChannels.push({
@@ -369,7 +324,6 @@ export function setupCaptureHandlers(): void {
           
           logger.info({ captureChannels }, 'Channel configs prepared from listed channels');
         } catch (listError) {
-          // Fallback: If listChannels fails, use simple channel IDs
           logger.warn({ error: listError }, 'listChannels failed, using fallback channel IDs');
           
           if (config.streams?.microphone !== false) {
@@ -393,8 +347,6 @@ export function setupCaptureHandlers(): void {
           throw new Error('No capture channels available. Check permissions.');
         }
 
-        // === PYTHON PATTERN: Start capture session directly ===
-        // Python version: await captureClient.startCaptureSession({ sessionId, channels });
         logger.info({ captureChannels }, 'Starting capture with channels');
         await captureClient.startCaptureSession({
           sessionId: config.sessionId,
@@ -402,8 +354,7 @@ export function setupCaptureHandlers(): void {
         });
         logger.info({ sessionId: config.sessionId }, 'Capture session started');
 
-        // IMPORTANT: Manually emit recording:started event immediately after startCaptureSession returns.
-        // This matches the Python meeting-copilot behavior which doesn't wait for SDK event.
+        // Manually emit recording:started immediately (matches Python behavior, doesn't wait for SDK event)
         logger.info({ sessionId: config.sessionId }, 'Emitting recording:started event to renderer');
         sendRecorderEvent({
           event: 'recording:started',
@@ -436,7 +387,6 @@ export function setupCaptureHandlers(): void {
 
       try {
         if (captureClient) {
-          // Remove event listeners first
           removeCaptureEventListeners();
 
           await captureClient.stopCaptureSession();
@@ -446,8 +396,7 @@ export function setupCaptureHandlers(): void {
           logger.info('CaptureClient shutdown complete');
           captureClient = null;
 
-          // IMPORTANT: Manually emit recording:stopped event immediately (like Python version)
-          // This ensures UI updates reliably without waiting for SDK events
+          // Manually emit recording:stopped immediately (ensures UI updates without waiting for SDK events)
           sendRecorderEvent({
             event: 'recording:stopped',
             data: {},
@@ -456,7 +405,6 @@ export function setupCaptureHandlers(): void {
           logger.warn('No active capture client to stop');
         }
 
-        // Cleanup WebSocket connections (like Python meeting-copilot)
         await cleanupTranscriptWebSockets();
 
         return { success: true };
@@ -495,8 +443,7 @@ export function setupCaptureHandlers(): void {
     async (_event, sessionToken: string, apiUrl?: string): Promise<Channel[]> => {
       logger.info('recorder-list-channels IPC handler called');
       
-      // Reuse existing captureClient if available, otherwise create one
-      // This prevents the "Another recorder instance" error
+      // Reuse existing captureClient to prevent "Another recorder instance" error
       if (!captureClient) {
         logger.info('Creating CaptureClient for listing channels');
         captureClient = new CaptureClient({
@@ -504,8 +451,7 @@ export function setupCaptureHandlers(): void {
           ...(apiUrl && { apiUrl }),
         });
         
-        // Set up minimal error listener immediately (like Python version does)
-        // This might be required for the SDK to function properly
+        // Set up minimal error listener immediately (required for SDK to function properly)
         captureClient.on('error', (error: unknown) => {
           logger.error({ error }, 'CaptureClient error during channel listing');
         });
@@ -518,7 +464,6 @@ export function setupCaptureHandlers(): void {
       try {
         logger.info('Calling captureClient.listChannels()...');
         
-        // Add timeout wrapper to detect hanging
         const listChannelsWithTimeout = async (timeoutMs: number = 30000) => {
           return Promise.race([
             captureClient!.listChannels(),
@@ -536,7 +481,6 @@ export function setupCaptureHandlers(): void {
           name: ch.name,
         }));
       } catch (error) {
-        // If listing fails, cleanup and provide detailed error
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const errorCode = errorMessage.includes('exited') ? errorMessage.match(/\d+/)?.[0] : undefined;
 
@@ -545,7 +489,6 @@ export function setupCaptureHandlers(): void {
           'Failed to list channels - this may indicate a binary execution issue'
         );
 
-        // Cleanup the failed client
         if (captureClient) {
           try {
             await captureClient.shutdown();
@@ -555,7 +498,6 @@ export function setupCaptureHandlers(): void {
           captureClient = null;
         }
 
-        // Throw with more context
         const detailedError = new Error(
           `Failed to list recording channels: ${errorMessage}` +
             (errorCode === '101' ? '. This may be a binary compatibility issue - check if the recorder binary matches your system architecture.' : '')
@@ -566,34 +508,23 @@ export function setupCaptureHandlers(): void {
   );
 }
 
-/**
- * Cleanup capture client - removes event listeners and nullifies reference
- * Use this for synchronous cleanup when you don't need to wait for shutdown
- */
+// Cleanup capture client for synchronous cleanup (doesn't wait for shutdown)
 function cleanupCapture(): void {
   if (captureClient) {
-    // Remove event listeners first to prevent any callbacks during shutdown
     removeCaptureEventListeners();
 
-    // Store reference for async cleanup
     const client = captureClient;
     captureClient = null;
 
-    // Attempt graceful shutdown in background
     client.shutdown().catch((error) => {
       logger.warn({ error }, 'Error shutting down CaptureClient during cleanup');
     });
   }
 }
 
-/**
- * Async cleanup that waits for shutdown to complete
- * Use this when you need to ensure the binary is fully stopped
- * Exported for use in tests or external cleanup scenarios
- */
+// Async cleanup that waits for shutdown to complete (for tests or external cleanup)
 export async function cleanupCaptureAsync(): Promise<void> {
   if (captureClient) {
-    // Remove event listeners first
     removeCaptureEventListeners();
 
     const client = captureClient;
@@ -608,17 +539,12 @@ export async function cleanupCaptureAsync(): Promise<void> {
   }
 }
 
-/**
- * Shutdown capture client - call this before app quit
- */
 export async function shutdownCaptureClient(): Promise<void> {
-  // Cleanup WebSocket connections first
   await cleanupTranscriptWebSockets();
 
   if (captureClient) {
     logger.info('Shutting down CaptureClient before app quit');
 
-    // Remove event listeners first
     removeCaptureEventListeners();
 
     const client = captureClient;
@@ -638,9 +564,6 @@ export async function shutdownCaptureClient(): Promise<void> {
   }
 }
 
-/**
- * Check if capture client is currently active
- */
 export function isCaptureActive(): boolean {
   return captureClient !== null;
 }

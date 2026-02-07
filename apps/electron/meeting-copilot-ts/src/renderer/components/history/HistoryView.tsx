@@ -10,28 +10,12 @@ import type { Recording } from '../../../shared/schemas/recording.schema';
 export function HistoryView() {
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(null);
 
-  const { data: recordings, isLoading, refetch, isRefetching, error } = trpc.recordings.list.useQuery(
+  const { data: recordings, isLoading, refetch, isRefetching } = trpc.recordings.list.useQuery(
     undefined,
     {
-      refetchInterval: 10000, // Refetch every 10 seconds
+      refetchInterval: 10000,
     }
   );
-
-  // Debug logging
-  console.log('[HistoryView] Recordings query state:', {
-    isLoading,
-    isRefetching,
-    error: error?.message,
-    recordingsCount: recordings?.length,
-    recordings: recordings?.map(r => ({
-      id: r.id,
-      sessionId: r.sessionId,
-      status: r.status,
-      insightsStatus: r.insightsStatus,
-      videoId: r.videoId,
-      createdAt: r.createdAt,
-    })),
-  });
 
   const sortedRecordings = [...(recordings || [])].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -51,14 +35,7 @@ export function HistoryView() {
           variant="outline"
           size="sm"
           onClick={() => {
-            console.log('[HistoryView] Refresh button clicked');
-            refetch().then((result) => {
-              console.log('[HistoryView] Refresh complete:', {
-                status: result.status,
-                recordingsCount: result.data?.length,
-                error: result.error?.message,
-              });
-            });
+            refetch();
           }}
           disabled={isRefetching}
         >

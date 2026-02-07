@@ -11,9 +11,7 @@ import type { TranscriptSegmentData } from './transcript-buffer.service';
 
 const log = logger.child({ module: 'sentiment-analyzer' });
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export type Sentiment = 'positive' | 'neutral' | 'negative';
 
@@ -34,9 +32,7 @@ export interface SentimentTrend {
   averageScore: number; // -1 to 1
 }
 
-// ============================================================================
 // Sentiment Patterns
-// ============================================================================
 
 const POSITIVE_PATTERNS = [
   // Strong positive
@@ -64,9 +60,7 @@ const NEGATIVE_PATTERNS = [
 
 const QUESTION_WEIGHT = -0.1; // Questions are slightly negative (indicate uncertainty)
 
-// ============================================================================
 // Sentiment Analyzer Service
-// ============================================================================
 
 export class SentimentAnalyzerService {
   private cache: Map<string, Sentiment> = new Map(); // segmentId -> sentiment
@@ -308,9 +302,7 @@ Respond with JSON:
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: SentimentAnalyzerService | null = null;
 

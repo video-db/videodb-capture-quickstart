@@ -59,16 +59,6 @@ export function useGlobalRecorderEvents() {
           if (event.data && transcription.enabled) {
             const transcript = event.data as TranscriptEvent;
             if (transcript.isFinal) {
-              // DEBUG: Log all final transcripts
-              console.log('[TRANSCRIPT FINAL]', {
-                source: transcript.source,
-                text: transcript.text.substring(0, 50) + (transcript.text.length > 50 ? '...' : ''),
-                start: transcript.start,
-                end: transcript.end,
-                duration: transcript.end - transcript.start,
-                wordCount: transcript.text.trim().split(/\s+/).filter(w => w.length > 0).length,
-              });
-
               transcription.finalizePending(transcript.source, transcript.text);
             } else {
               transcription.updatePending(transcript.source, transcript.text);
@@ -96,8 +86,8 @@ export function useGlobalRecorderEvents() {
           break;
 
         case 'upload:complete':
-          console.log('[GlobalRecorderEvents] Upload complete, setting status to idle');
-          session.setStatus('idle');
+          console.log('[GlobalRecorderEvents] Upload complete, resetting session');
+          session.stopSession(); // This resets status to idle and clears session info
           break;
 
         case 'error':

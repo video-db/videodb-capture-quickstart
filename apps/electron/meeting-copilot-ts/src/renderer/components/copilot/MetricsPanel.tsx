@@ -24,9 +24,7 @@ import {
 import { useCopilotStore } from '../../stores/copilot.store';
 import { cn } from '../../lib/utils';
 
-// ============================================================================
 // Sub-components
-// ============================================================================
 
 interface TalkRatioBarProps {
   meRatio: number;
@@ -153,9 +151,7 @@ function HealthScore({ score }: { score: number }) {
   );
 }
 
-// ============================================================================
 // Main Component
-// ============================================================================
 
 interface MetricsPanelProps {
   className?: string;

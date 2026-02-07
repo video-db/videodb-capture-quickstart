@@ -10,10 +10,6 @@ import { loadAppConfig, loadRuntimeConfig } from '../lib/config';
 
 const log = logger.child({ module: 'llm-service' });
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface LLMConfig {
   apiKey: string;
   apiBase: string;
@@ -45,10 +41,6 @@ export interface JSONLLMResponse<T = unknown> {
   raw?: string;
 }
 
-// ============================================================================
-// LLM Service Class
-// ============================================================================
-
 export class LLMService {
   private config: LLMConfig;
   private static instance: LLMService | null = null;
@@ -77,16 +69,10 @@ export class LLMService {
     LLMService.instance = null;
   }
 
-  /**
-   * Update the API key (e.g., after user authentication)
-   */
   setApiKey(apiKey: string): void {
     this.config.apiKey = apiKey;
   }
 
-  /**
-   * Make a chat completion request
-   */
   async chatCompletion(messages: ChatMessage[]): Promise<LLMResponse> {
     if (!this.config.apiKey) {
       return {
@@ -145,9 +131,6 @@ export class LLMService {
     }
   }
 
-  /**
-   * Make a chat completion request with JSON response parsing
-   */
   async chatCompletionJSON<T = unknown>(
     messages: ChatMessage[],
     parseResponse?: (content: string) => T
@@ -164,16 +147,13 @@ export class LLMService {
     }
 
     try {
-      // Extract JSON from the response (handle markdown code blocks)
       let jsonString = response.content;
 
-      // Try to extract JSON from markdown code blocks
       const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         jsonString = jsonMatch[1].trim();
       }
 
-      // Try to find JSON object or array
       const jsonObjectMatch = jsonString.match(/\{[\s\S]*\}/);
       const jsonArrayMatch = jsonString.match(/\[[\s\S]*\]/);
 
@@ -203,9 +183,6 @@ export class LLMService {
     }
   }
 
-  /**
-   * Simple prompt completion with system message
-   */
   async complete(prompt: string, systemPrompt?: string): Promise<LLMResponse> {
     const messages: ChatMessage[] = [];
 
@@ -218,9 +195,6 @@ export class LLMService {
     return this.chatCompletion(messages);
   }
 
-  /**
-   * Simple prompt completion with JSON response
-   */
   async completeJSON<T = unknown>(
     prompt: string,
     systemPrompt?: string
@@ -236,9 +210,6 @@ export class LLMService {
     return this.chatCompletionJSON<T>(messages);
   }
 
-  /**
-   * Analyze text and return structured data
-   */
   async analyze<T = unknown>(
     text: string,
     analysisPrompt: string,
@@ -257,20 +228,10 @@ Text to analyze:
   }
 }
 
-// ============================================================================
-// Convenience Functions
-// ============================================================================
-
-/**
- * Get the singleton LLM service instance
- */
 export function getLLMService(): LLMService {
   return LLMService.getInstance();
 }
 
-/**
- * Initialize LLM service with API key
- */
 export function initLLMService(apiKey: string): LLMService {
   LLMService.resetInstance();
   return LLMService.getInstance({ apiKey });

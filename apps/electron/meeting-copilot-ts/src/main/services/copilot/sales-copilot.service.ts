@@ -66,9 +66,7 @@ import {
 
 const log = logger.child({ module: 'sales-copilot' });
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export interface CopilotConfig {
   enableTranscription: boolean;
@@ -107,9 +105,7 @@ export interface CallState {
   isActive: boolean;
 }
 
-// ============================================================================
 // Sales Co-Pilot Service
-// ============================================================================
 
 export class SalesCopilotService extends EventEmitter {
   private transcriptBuffer: TranscriptBufferService;
@@ -624,9 +620,7 @@ export class SalesCopilotService extends EventEmitter {
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: SalesCopilotService | null = null;
 

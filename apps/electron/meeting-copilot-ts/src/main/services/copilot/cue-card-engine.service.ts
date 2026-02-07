@@ -18,9 +18,7 @@ import type { TranscriptSegmentData } from './transcript-buffer.service';
 
 const log = logger.child({ module: 'cue-card-engine' });
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export type ObjectionType =
   | 'pricing'
@@ -59,9 +57,7 @@ export interface ObjectionDetectionResult {
   triggerText?: string;
 }
 
-// ============================================================================
 // Detection Patterns
-// ============================================================================
 
 const DETECTION_PATTERNS: Record<ObjectionType, RegExp[]> = {
   pricing: [
@@ -106,9 +102,7 @@ const DETECTION_PATTERNS: Record<ObjectionType, RegExp[]> = {
   ],
 };
 
-// ============================================================================
 // Cue Card Engine Service
-// ============================================================================
 
 export class CueCardEngineService {
   private recentTriggers: Map<string, number> = new Map(); // objectionType -> timestamp
@@ -488,9 +482,7 @@ Respond with JSON:
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: CueCardEngineService | null = null;
 

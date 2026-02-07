@@ -5,6 +5,12 @@ import {
   CreateRecordingInputSchema,
   StopRecordingInputSchema,
   GetRecordingInputSchema,
+  CallSummarySchema,
+  PlaybookSnapshotSchema,
+  MetricsSnapshotSchema,
+  type CallSummary,
+  type PlaybookSnapshot,
+  type MetricsSnapshot,
 } from '../../../../shared/schemas/recording.schema';
 import {
   getAllRecordings,
@@ -15,6 +21,21 @@ import {
 import { createChildLogger } from '../../../lib/logger';
 
 const logger = createChildLogger('recordings-procedure');
+
+// Safely parse and validate JSON against schema
+function safeJsonParse<T>(
+  json: string | null | undefined,
+  schema: z.ZodType<T>
+): T | undefined {
+  if (!json) return undefined;
+  try {
+    const parsed = JSON.parse(json);
+    const result = schema.safeParse(parsed);
+    return result.success ? result.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // Transform database recording to API schema
 function toApiRecording(dbRecording: ReturnType<typeof getRecordingById>) {
@@ -31,6 +52,10 @@ function toApiRecording(dbRecording: ReturnType<typeof getRecordingById>) {
     status: dbRecording.status as 'recording' | 'processing' | 'available' | 'failed',
     insights: dbRecording.insights,
     insightsStatus: dbRecording.insightsStatus as 'pending' | 'processing' | 'ready' | 'failed',
+    // Parse and validate copilot data from JSON strings
+    callSummary: safeJsonParse<CallSummary>(dbRecording.callSummary, CallSummarySchema),
+    playbookSnapshot: safeJsonParse<PlaybookSnapshot>(dbRecording.playbookSnapshot, PlaybookSnapshotSchema),
+    metricsSnapshot: safeJsonParse<MetricsSnapshot>(dbRecording.metricsSnapshot, MetricsSnapshotSchema),
   };
 }
 

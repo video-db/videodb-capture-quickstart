@@ -16,10 +16,6 @@ import type { TranscriptSegment, NewTranscriptSegment } from '../../db/schema';
 
 const log = logger.child({ module: 'transcript-buffer' });
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface RawTranscriptData {
   text: string;
   is_final: boolean;
@@ -43,42 +39,29 @@ export interface TranscriptSegmentData {
 
 export interface TranscriptBufferEvents {
   'segment-added': (segment: TranscriptSegmentData) => void;
-  'segment-ready': (segment: TranscriptSegmentData) => void; // Final segment ready for processing
+  'segment-ready': (segment: TranscriptSegmentData) => void;
 }
 
-// ============================================================================
-// Transcript Buffer Service
-// ============================================================================
-
 export class TranscriptBufferService extends EventEmitter {
-  private segments: Map<string, TranscriptSegmentData[]> = new Map(); // sessionId -> segments
-  private callStartTimes: Map<string, number> = new Map(); // sessionId -> epoch start time
-  private readonly MAX_ACTIVE_WINDOW = 100; // Last 100 segments (~10 min)
-  private readonly MAX_MEMORY_SEGMENTS = 200; // Double buffer for memory management
+  private segments: Map<string, TranscriptSegmentData[]> = new Map();
+  private callStartTimes: Map<string, number> = new Map();
+  private readonly MAX_ACTIVE_WINDOW = 100;
+  private readonly MAX_MEMORY_SEGMENTS = 200;
 
   constructor() {
     super();
   }
 
-  /**
-   * Start tracking a new call
-   */
   startCall(sessionId: string, recordingId: number): void {
     this.segments.set(sessionId, []);
     this.callStartTimes.set(sessionId, Date.now() / 1000);
     log.info({ sessionId, recordingId }, 'Started tracking call');
   }
 
-  /**
-   * Get call start time in epoch seconds
-   */
   getCallStartTime(sessionId: string): number {
     return this.callStartTimes.get(sessionId) || Date.now() / 1000;
   }
 
-  /**
-   * Add a raw transcript segment from WebSocket
-   */
   async addRawSegment(
     sessionId: string,
     recordingId: number,
@@ -91,7 +74,6 @@ export class TranscriptBufferService extends EventEmitter {
 
     const callStart = this.getCallStartTime(sessionId);
 
-    // Convert epoch times to relative seconds from call start
     const startTime = rawData.start - callStart;
     const endTime = rawData.end - callStart;
 
@@ -106,21 +88,6 @@ export class TranscriptBufferService extends EventEmitter {
       isFinal: rawData.is_final,
       processedByAgent: false,
     };
-
-    // DEBUG: Log segment creation for WPM debugging
-    if (rawData.is_final) {
-      log.info({
-        channel,
-        text: rawData.text.substring(0, 40),
-        rawStart: rawData.start,
-        rawEnd: rawData.end,
-        callStart,
-        relativeStart: startTime,
-        relativeEnd: endTime,
-        duration: endTime - startTime,
-        wordCount: rawData.text.trim().split(/\s+/).filter((w: string) => w.length > 0).length,
-      }, '[BUFFER DEBUG] Final segment added');
-    }
 
     // Add to in-memory buffer
     const callSegments = this.segments.get(sessionId)!;
@@ -285,9 +252,7 @@ export class TranscriptBufferService extends EventEmitter {
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: TranscriptBufferService | null = null;
 

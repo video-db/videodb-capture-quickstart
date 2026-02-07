@@ -12,7 +12,6 @@ const logger = createChildLogger('webhook-route');
 
 export const webhookRouter = new Hono();
 
-// Store active session to user mapping for webhook processing
 const sessionUserMap = new Map<string, string>();
 
 export function registerSessionUser(sessionId: string, accessToken: string): void {
@@ -91,7 +90,6 @@ async function handleCaptureSessionExported(
     return;
   }
 
-  // Log all available keys in data
   logger.info({ sessionId, dataKeys: Object.keys(data) }, '[Webhook] Data keys available');
 
   // Use exported_video_id (matching Python webhook handler)
@@ -115,7 +113,6 @@ async function handleCaptureSessionExported(
 
   logger.info({ sessionId, videoId }, '[Webhook] Processing capture session export');
 
-  // Update the recording with video info
   const recording = updateRecordingBySessionId(sessionId, {
     videoId,
     streamUrl: streamUrl || null,
@@ -137,7 +134,6 @@ async function handleCaptureSessionExported(
     insightsStatus: recording.insightsStatus,
   }, '[Webhook] Recording updated with video info');
 
-  // Get user API key for insights processing
   const accessToken = sessionUserMap.get(sessionId);
   logger.info({
     sessionId,
@@ -159,7 +155,6 @@ async function handleCaptureSessionExported(
 
   logger.info({ sessionId, userId: user.id, userName: user.name }, '[Webhook] Starting insights processing');
 
-  // Process insights in the background
   const insightsService = createInsightsService(user.apiKey);
 
   // Fire and forget - don't await
@@ -169,7 +164,6 @@ async function handleCaptureSessionExported(
     logger.error({ error, recordingId: recording.id }, '[Webhook] Background insights processing failed');
   });
 
-  // Clean up session mapping
   sessionUserMap.delete(sessionId);
   logger.info({ sessionId }, '[Webhook] Session user mapping cleaned up');
 }

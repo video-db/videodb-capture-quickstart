@@ -18,7 +18,7 @@ export function getDbPath(): string {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
-  return path.join(dbDir, 'meeting-copilot.db');
+  return path.join(dbDir, 'sales-copilot.db');
 }
 
 export function initDatabase(): ReturnType<typeof drizzle<typeof schema>> {
@@ -30,7 +30,6 @@ export function initDatabase(): ReturnType<typeof drizzle<typeof schema>> {
   sqlite = new Database(dbPath);
   db = drizzle(sqlite, { schema });
 
-  // Create tables if they don't exist
   sqlite.exec(`
     -- Core tables
     CREATE TABLE IF NOT EXISTS users (
@@ -178,17 +177,13 @@ export function initDatabase(): ReturnType<typeof drizzle<typeof schema>> {
     CREATE INDEX IF NOT EXISTS idx_nudges_history_recording ON nudges_history(recording_id);
   `);
 
-  // Ensure new columns exist on existing databases
   ensureRecordingColumns();
   ensureNudgesHistorySchema();
 
-  // Seed default cue cards if not exists
   seedDefaultCueCards();
 
-  // Seed default playbooks if not exists
   seedDefaultPlaybooks();
 
-  // Seed default settings/prompts if not exists
   seedDefaultSettings();
 
   logger.info('Database initialized successfully');
@@ -275,7 +270,6 @@ export function closeDatabase(): void {
   }
 }
 
-// User queries
 export function getUserByAccessToken(accessToken: string) {
   const database = getDatabase();
   return database
@@ -290,7 +284,6 @@ export function createUser(data: schema.NewUser) {
   return database.insert(schema.users).values(data).returning().get();
 }
 
-// Recording queries
 export function getRecordingById(id: number) {
   const database = getDatabase();
   return database
@@ -346,9 +339,6 @@ export function updateRecordingBySessionId(
     .get();
 }
 
-// ============================================================================
-// Transcript Segment Queries
-// ============================================================================
 
 export function createTranscriptSegment(data: schema.NewTranscriptSegment) {
   const database = getDatabase();
@@ -387,7 +377,7 @@ export function getRecentTranscriptSegments(sessionId: string, limit: number = 5
     .orderBy(desc(schema.transcriptSegments.startTime))
     .limit(limit)
     .all()
-    .reverse(); // Return in chronological order
+    .reverse();
 }
 
 export function updateTranscriptSegment(id: string, data: Partial<schema.TranscriptSegment>) {
@@ -407,9 +397,6 @@ export function deleteTranscriptSegmentsBySession(sessionId: string) {
     .where(eq(schema.transcriptSegments.sessionId, sessionId));
 }
 
-// ============================================================================
-// Bookmark Queries
-// ============================================================================
 
 export function createBookmark(data: schema.NewBookmark) {
   const database = getDatabase();
@@ -431,9 +418,6 @@ export function deleteBookmark(id: string) {
   return database.delete(schema.bookmarks).where(eq(schema.bookmarks.id, id));
 }
 
-// ============================================================================
-// Cue Card Queries
-// ============================================================================
 
 export function getCueCardsByType(objectionType: string) {
   const database = getDatabase();
@@ -464,9 +448,6 @@ export function updateCueCard(id: string, data: Partial<schema.CueCard>) {
     .get();
 }
 
-// ============================================================================
-// Cue Card Trigger Queries
-// ============================================================================
 
 export function createCueCardTrigger(data: schema.NewCueCardTrigger) {
   const database = getDatabase();
@@ -493,9 +474,6 @@ export function updateCueCardTrigger(id: string, data: Partial<schema.CueCardTri
     .get();
 }
 
-// ============================================================================
-// Playbook Queries
-// ============================================================================
 
 export function getPlaybookById(id: string) {
   const database = getDatabase();
@@ -525,9 +503,6 @@ export function createPlaybook(data: schema.NewPlaybook) {
   return database.insert(schema.playbooks).values(data).returning().get();
 }
 
-// ============================================================================
-// Playbook Session Queries
-// ============================================================================
 
 export function createPlaybookSession(data: schema.NewPlaybookSession) {
   const database = getDatabase();
@@ -553,9 +528,6 @@ export function updatePlaybookSession(id: string, data: Partial<schema.PlaybookS
     .get();
 }
 
-// ============================================================================
-// Call Metrics History Queries
-// ============================================================================
 
 export function createCallMetricsSnapshot(data: schema.NewCallMetricsHistory) {
   const database = getDatabase();
@@ -572,9 +544,6 @@ export function getCallMetricsHistory(recordingId: number) {
     .all();
 }
 
-// ============================================================================
-// Nudge History Queries
-// ============================================================================
 
 export function createNudge(data: schema.NewNudgeHistory) {
   const database = getDatabase();
@@ -601,9 +570,6 @@ export function dismissNudge(id: string) {
     .get();
 }
 
-// ============================================================================
-// Copilot Settings Queries
-// ============================================================================
 
 export function getSetting(key: string) {
   const database = getDatabase();
@@ -652,9 +618,6 @@ export function deleteSetting(key: string) {
   return database.delete(schema.copilotSettings).where(eq(schema.copilotSettings.key, key));
 }
 
-// ============================================================================
-// Additional Cue Card & Playbook Functions
-// ============================================================================
 
 export function deleteCueCard(id: string) {
   const database = getDatabase();
@@ -678,9 +641,7 @@ export function deletePlaybook(id: string) {
 
 export function setDefaultPlaybook(id: string) {
   const database = getDatabase();
-  // First, unset all defaults
   database.update(schema.playbooks).set({ isDefault: false }).run();
-  // Then set the new default
   return database
     .update(schema.playbooks)
     .set({ isDefault: true })
@@ -689,14 +650,10 @@ export function setDefaultPlaybook(id: string) {
     .get();
 }
 
-// ============================================================================
-// Seed Functions
-// ============================================================================
 
 function seedDefaultCueCards() {
   const database = getDatabase();
 
-  // Check if default cue cards already exist
   const existing = database
     .select()
     .from(schema.cueCards)
@@ -828,7 +785,6 @@ function seedDefaultCueCards() {
 function seedDefaultPlaybooks() {
   const database = getDatabase();
 
-  // Check if MEDDIC playbook already exists
   const existing = database
     .select()
     .from(schema.playbooks)
@@ -939,7 +895,6 @@ function seedDefaultPlaybooks() {
 
   database.insert(schema.playbooks).values(meddicPlaybook).run();
 
-  // Add Challenger playbook
   const challengerPlaybook: schema.NewPlaybook = {
     id: 'playbook-challenger',
     name: 'Challenger Sales',
@@ -1000,7 +955,6 @@ function seedDefaultPlaybooks() {
 function seedDefaultSettings() {
   const database = getDatabase();
 
-  // Check if settings already exist
   const existing = database
     .select()
     .from(schema.copilotSettings)
@@ -1009,7 +963,6 @@ function seedDefaultSettings() {
   if (existing) return;
 
   const defaultSettings: schema.NewCopilotSetting[] = [
-    // Prompts
     {
       key: 'prompt_sentiment_analysis',
       category: 'prompt',
@@ -1082,7 +1035,6 @@ Transcript:
 
 Return JSON array: [{"action": "string", "owner": "me"|"them"|"both", "priority": "high"|"medium"|"low"}]`,
     },
-    // Thresholds
     {
       key: 'threshold_monologue_seconds',
       category: 'threshold',
@@ -1111,7 +1063,6 @@ Return JSON array: [{"action": "string", "owner": "me"|"them"|"both", "priority"
       description: 'Minimum milliseconds between nudges',
       value: '120000',
     },
-    // Config
     {
       key: 'config_llm_detection',
       category: 'config',

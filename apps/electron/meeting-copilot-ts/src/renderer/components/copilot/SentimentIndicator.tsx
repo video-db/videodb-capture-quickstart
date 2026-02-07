@@ -21,9 +21,7 @@ import { useCopilotStore } from '../../stores/copilot.store';
 import { cn } from '../../lib/utils';
 import type { CopilotSentiment } from '../../../shared/types/ipc.types';
 
-// ============================================================================
 // Sub-components
-// ============================================================================
 
 function SentimentIcon({ sentiment, className }: { sentiment: string; className?: string }) {
   switch (sentiment) {
@@ -102,9 +100,7 @@ function SentimentHistory({ history }: { history: CopilotSentiment['history'] })
   );
 }
 
-// ============================================================================
 // Main Component
-// ============================================================================
 
 interface SentimentIndicatorProps {
   className?: string;

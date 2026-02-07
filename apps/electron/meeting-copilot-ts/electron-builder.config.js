@@ -3,15 +3,11 @@ const path = require('path');
 const https = require('https');
 const { execSync } = require('child_process');
 
-/**
- * Download a file from URL to destination
- */
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(dest);
     https
       .get(url, (response) => {
-        // Handle redirects
         if (response.statusCode === 302 || response.statusCode === 301) {
           file.close();
           fs.unlinkSync(dest);
@@ -79,11 +75,11 @@ const config = {
     target: [
       {
         target: 'dmg',
-        arch: ['x64', 'arm64'], // Match Python version - build for both architectures
+        arch: ['x64', 'arm64'],
       },
       {
         target: 'zip',
-        arch: ['x64', 'arm64'], // Match Python version
+        arch: ['x64', 'arm64'],
       },
     ],
     category: 'public.app-category.productivity',
@@ -93,14 +89,14 @@ const config = {
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
     extendInfo: {
-      NSMicrophoneUsageDescription: 'Meeting Copilot needs microphone access to record audio.',
-      NSCameraUsageDescription: 'Meeting Copilot needs camera access to record video.',
+      NSMicrophoneUsageDescription: 'Sales Copilot needs microphone access to record audio.',
+      NSCameraUsageDescription: 'Sales Copilot needs camera access to record video.',
       NSScreenCaptureUsageDescription:
-        'Meeting Copilot needs screen capture access to record your screen.',
+        'Sales Copilot needs screen capture access to record your screen.',
     },
   },
   dmg: {
-    title: 'Meeting Copilot ${version}',
+    title: 'Sales Copilot ${version}',
     icon: 'resources/icon.icns',
     window: {
       width: 540,
@@ -132,23 +128,20 @@ const config = {
     const targetArch = context.arch;
     console.log('Before pack - target arch:', targetArch);
 
-    // If building for x64 on an arm64 machine, we need to download the x64 cloudflared binary
+    // Cross-compiling arm64 host → x64 target needs an x64 cloudflared binary.
     if (process.arch === 'arm64' && targetArch === 1) {
-      // arch 1 = x64 in electron-builder
       console.log('Detected cross-compilation: arm64 host building for x64 target');
       console.log('Downloading x64 cloudflared binary...');
 
       const cloudflaredBinDir = path.join(__dirname, 'node_modules', 'cloudflared', 'bin');
       const cloudflaredPath = path.join(cloudflaredBinDir, 'cloudflared');
 
-      // Backup current binary
       if (fs.existsSync(cloudflaredPath)) {
         const backupPath = path.join(cloudflaredBinDir, 'cloudflared.arm64.bak');
         fs.renameSync(cloudflaredPath, backupPath);
         console.log('Backed up arm64 cloudflared binary');
       }
 
-      // Download x64 binary from cloudflare
       const downloadUrl =
         'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz';
       const tgzPath = path.join(cloudflaredBinDir, 'cloudflared-darwin-amd64.tgz');
@@ -157,22 +150,17 @@ const config = {
         await downloadFile(downloadUrl, tgzPath);
         console.log('Downloaded x64 cloudflared archive');
 
-        // Extract the tgz
         execSync(`tar -xzf "${tgzPath}" -C "${cloudflaredBinDir}"`, { stdio: 'inherit' });
         console.log('Extracted x64 cloudflared binary');
 
-        // Cleanup tgz
         fs.unlinkSync(tgzPath);
 
-        // Verify
         const fileOutput = execSync(`file "${cloudflaredPath}"`).toString();
         console.log('New cloudflared binary type:', fileOutput.trim());
 
-        // Set permissions
         fs.chmodSync(cloudflaredPath, 0o755);
       } catch (error) {
         console.error('Failed to download x64 cloudflared:', error.message);
-        // Restore backup if download failed
         const backupPath = path.join(cloudflaredBinDir, 'cloudflared.arm64.bak');
         if (fs.existsSync(backupPath)) {
           fs.renameSync(backupPath, cloudflaredPath);
@@ -194,26 +182,22 @@ const config = {
       const resourcesPath = path.join(appOutDir, `${appName}.app`, 'Contents', 'Resources');
       const unpackedPath = path.join(resourcesPath, 'app.asar.unpacked');
 
-      // Verify unpacked binaries exist
       const videodbBinPath = path.join(unpackedPath, 'node_modules', 'videodb', 'bin');
       const cloudflaredBinPath = path.join(unpackedPath, 'node_modules', 'cloudflared', 'bin');
 
       console.log('Checking videodb binaries at:', videodbBinPath);
       console.log('Checking cloudflared binaries at:', cloudflaredBinPath);
 
-      // Check and fix videodb recorder binary
       const recorderPath = path.join(videodbBinPath, 'recorder');
       const librecorderPath = path.join(videodbBinPath, 'librecorder.dylib');
 
       if (fs.existsSync(recorderPath)) {
         console.log('Found recorder binary');
 
-        // Check architecture
         try {
           const fileOutput = execSync(`file "${recorderPath}"`).toString();
           console.log('Recorder binary type:', fileOutput.trim());
 
-          // Check architecture compatibility
           const targetArch = context.arch;
           const isArm64 = targetArch === 'arm64' || targetArch === 2; // arch 2 = arm64 in electron-builder
           const isX64 = targetArch === 'x64' || targetArch === 1; // arch 1 = x64 in electron-builder
@@ -227,7 +211,6 @@ const config = {
             console.warn('This may cause compatibility issues.');
           }
 
-          // Ensure executable permissions
           fs.chmodSync(recorderPath, 0o755);
           console.log('Set recorder binary permissions to 755');
         } catch (error) {
@@ -239,14 +222,12 @@ const config = {
 
       if (fs.existsSync(librecorderPath)) {
         console.log('Found librecorder.dylib');
-        // Ensure readable permissions
         fs.chmodSync(librecorderPath, 0o644);
         console.log('Set librecorder.dylib permissions to 644');
       } else {
         console.error('ERROR: librecorder.dylib not found at', librecorderPath);
       }
 
-      // Check cloudflared binary
       const cloudflaredPath = path.join(cloudflaredBinPath, 'cloudflared');
       if (fs.existsSync(cloudflaredPath)) {
         console.log('Found cloudflared binary');
@@ -255,7 +236,6 @@ const config = {
           const fileOutput = execSync(`file "${cloudflaredPath}"`).toString();
           console.log('Cloudflared binary type:', fileOutput.trim());
 
-          // Ensure executable permissions
           fs.chmodSync(cloudflaredPath, 0o755);
           console.log('Set cloudflared binary permissions to 755');
         } catch (error) {
@@ -265,7 +245,6 @@ const config = {
         console.error('ERROR: cloudflared binary not found at', cloudflaredPath);
       }
 
-      // Check better-sqlite3 native module
       const betterSqlitePath = path.join(
         unpackedPath,
         'node_modules',

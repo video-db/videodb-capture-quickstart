@@ -23,9 +23,7 @@ import type {
   CopilotTranscriptSegment,
 } from '../../shared/types/ipc.types';
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export interface CopilotState {
   // Configuration
@@ -99,9 +97,7 @@ export interface CopilotState {
   reset: () => void;
 }
 
-// ============================================================================
 // Initial State
-// ============================================================================
 
 const initialConfig: CopilotConfig = {
   enableTranscription: true,
@@ -133,9 +129,7 @@ const initialState = {
   transcriptSegments: [],
 };
 
-// ============================================================================
 // Store
-// ============================================================================
 
 export const useCopilotStore = create<CopilotState>((set, get) => ({
   ...initialState,
@@ -312,9 +306,7 @@ export const useCopilotStore = create<CopilotState>((set, get) => ({
   },
 }));
 
-// ============================================================================
 // Selectors (for optimized re-renders)
-// ============================================================================
 
 export const selectMetrics = (state: CopilotState) => state.metrics;
 export const selectSentiment = (state: CopilotState) => state.sentiment;

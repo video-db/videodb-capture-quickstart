@@ -19,10 +19,8 @@ export function useSession() {
   const stopRecordingMutation = trpc.recordings.stop.useMutation();
   const startTranscriptionMutation = trpc.transcription.start.useMutation();
 
-  // NOTE: Recorder events are now handled globally in useGlobalRecorderEvents
-  // This prevents transcript loss when navigating between pages
+  // Recorder events are global to prevent transcript loss on navigation.
 
-  // Timer for elapsed time
   useEffect(() => {
     if (sessionStore.status === 'recording' && sessionStore.startTime) {
       timerRef.current = setInterval(() => {
@@ -44,8 +42,6 @@ export function useSession() {
   }, [sessionStore.status, sessionStore.startTime]);
 
   const startRecording = useCallback(async () => {
-    console.log('[useSession] startRecording called');
-
     if (!electronAPI) {
       sessionStore.setError('Electron API not available');
       return;
@@ -55,57 +51,39 @@ export function useSession() {
     transcriptionStore.clear();
 
     try {
-      // Generate session token if expired
-      console.log('[useSession] Step 1: Checking session token');
       let sessionToken = sessionStore.sessionToken;
       let tokenExpiresAt = sessionStore.tokenExpiresAt;
 
       if (sessionStore.isTokenExpired()) {
-        console.log('[useSession] Token expired, generating new one');
         const tokenResult = await generateTokenMutation.mutateAsync({});
         sessionToken = tokenResult.sessionToken;
         tokenExpiresAt = tokenResult.expiresAt;
         sessionStore.setSessionToken(sessionToken, tokenExpiresAt);
-        console.log('[useSession] New token generated');
       }
 
       if (!sessionToken) {
         throw new Error('Failed to get session token');
       }
 
-      // Get accessToken from renderer's config store (already authenticated via tRPC)
       const accessToken = configStore.accessToken;
       const apiUrl = configStore.apiUrl;
-      console.log('[useSession] Step 2: Got access token and apiUrl', { hasAccessToken: !!accessToken, apiUrl });
 
       if (!accessToken) {
         throw new Error('Not authenticated');
       }
 
-      // Create capture session
-      console.log('[useSession] Step 3: Creating capture session');
       const captureSession = await createSessionMutation.mutateAsync({});
-      console.log('[useSession] Capture session created:', captureSession);
 
-      // Pass stream preferences to main process (like Python pattern)
-      // Main process will handle channel discovery via listChannels()
-      console.log('[useSession] Step 4: Preparing streams config for main process');
-      
       const streamsConfig = {
         microphone: sessionStore.streams.microphone,
         systemAudio: sessionStore.streams.systemAudio,
         screen: sessionStore.streams.screen,
       };
 
-      // Ensure at least one stream is enabled
       if (!streamsConfig.microphone && !streamsConfig.systemAudio && !streamsConfig.screen) {
         throw new Error('No streams enabled for recording');
       }
 
-      console.log('[useSession] Streams config:', streamsConfig);
-
-      // Start recording via IPC (Python pattern - pass streams, main process handles channels)
-      console.log('[useSession] Step 5: Calling startRecording IPC...');
       const result = await electronAPI.capture.startRecording({
         config: {
           sessionId: captureSession.sessionId,
@@ -117,38 +95,23 @@ export function useSession() {
         enableTranscription: transcriptionStore.enabled,
       });
 
-      console.log('[useSession] startRecording IPC result:', result);
-
       if (!result.success) {
         throw new Error(result.error || 'Failed to start recording');
       }
 
-      // Create recording entry in database
-      console.log('[useSession] Step 6: Creating recording entry in database');
       const recordingResult = await startRecordingMutation.mutateAsync({
         sessionId: captureSession.sessionId,
       });
-      console.log('[useSession] Recording entry created:', recordingResult);
 
-      // Start transcription with WebSocket connection IDs (like Python meeting-copilot)
-      // The main process creates WebSocket connections and returns the IDs
-      // We pass them to the backend which polls for RTStreams and calls startTranscript()
       if (transcriptionStore.enabled && (result.micWsConnectionId || result.sysAudioWsConnectionId)) {
-        console.log('[useSession] Step 6: Starting transcription with WebSocket IDs:', {
-          micWsConnectionId: result.micWsConnectionId,
-          sysAudioWsConnectionId: result.sysAudioWsConnectionId,
-        });
         await startTranscriptionMutation.mutateAsync({
           sessionId: captureSession.sessionId,
           micWsConnectionId: result.micWsConnectionId,
           sysAudioWsConnectionId: result.sysAudioWsConnectionId,
         });
-        console.log('[useSession] Transcription started');
       }
 
-      // Start Sales Co-Pilot if transcription is enabled
       if (transcriptionStore.enabled && recordingResult?.id) {
-        console.log('[useSession] Step 6b: Starting Sales Co-Pilot');
         try {
           const copilotResult = await electronAPI.copilot.startCall(
             recordingResult.id,
@@ -156,19 +119,14 @@ export function useSession() {
           );
           if (copilotResult.success) {
             useCopilotStore.getState().startCall(recordingResult.id);
-            console.log('[useSession] Sales Co-Pilot started');
-          } else {
-            console.warn('[useSession] Failed to start Co-Pilot:', copilotResult.error);
           }
         } catch (copilotError) {
-          console.warn('[useSession] Error starting Co-Pilot:', copilotError);
+          // Ignore copilot errors
         }
       }
 
-      console.log('[useSession] Step 7: Recording started successfully');
       sessionStore.startSession(captureSession.sessionId, sessionToken!, tokenExpiresAt!);
     } catch (error) {
-      console.error('[useSession] Error starting recording:', error);
       sessionStore.setError(error instanceof Error ? error.message : 'Failed to start recording');
       sessionStore.setStatus('idle');
     }
@@ -183,58 +141,54 @@ export function useSession() {
   ]);
 
   const stopRecording = useCallback(async () => {
-    console.log('[useSession] stopRecording called, sessionId:', sessionStore.sessionId);
-
     if (!electronAPI) return;
 
     sessionStore.setStatus('stopping');
 
     try {
-      console.log('[useSession] Stopping capture via IPC');
       const result = await electronAPI.capture.stopRecording();
-      console.log('[useSession] Stop recording IPC result:', result);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to stop recording');
       }
 
-      // Update recording status
       if (sessionStore.sessionId) {
-        console.log('[useSession] Updating recording status to processing');
-        const stopResult = await stopRecordingMutation.mutateAsync({
+        await stopRecordingMutation.mutateAsync({
           sessionId: sessionStore.sessionId,
         });
-        console.log('[useSession] Stop recording mutation result:', stopResult);
       }
 
-      // Stop Sales Co-Pilot and get summary
       if (useCopilotStore.getState().isCallActive) {
-        console.log('[useSession] Stopping Sales Co-Pilot');
         try {
           const copilotResult = await electronAPI.copilot.endCall();
-          if (copilotResult.success) {
-            console.log('[useSession] Sales Co-Pilot stopped, summary generated');
-            if (copilotResult.summary) {
-              // Duration is tracked in the store from call start
-              const duration = useCopilotStore.getState().callDuration || 0;
-              useCopilotStore.getState().setCallSummary(copilotResult.summary, duration);
-            }
-          } else {
-            console.warn('[useSession] Failed to stop Co-Pilot:', copilotResult.error);
+          if (copilotResult.success && copilotResult.summary) {
+            const duration = useCopilotStore.getState().callDuration || 0;
+            useCopilotStore.getState().setCallSummary(copilotResult.summary, duration);
           }
         } catch (copilotError) {
-          console.warn('[useSession] Error stopping Co-Pilot:', copilotError);
+          // Ignore copilot errors
         }
       }
 
-      console.log('[useSession] Recording stopped, waiting for webhook...');
-      sessionStore.stopSession();
+      transcriptionStore.clear();
+
+      const copilotState = useCopilotStore.getState();
+      if (!copilotState.callSummary) {
+        copilotState.reset();
+      } else {
+        copilotState.endCall();
+      }
+
+      // Event handlers drive the status transitions (recording → processing → idle)
+      sessionStore.setElapsedTime(0);
     } catch (error) {
-      console.error('[useSession] Error stopping recording:', error);
       sessionStore.setError(error instanceof Error ? error.message : 'Failed to stop recording');
-      sessionStore.setStatus('idle');
+      sessionStore.stopSession();
+
+      transcriptionStore.clear();
+      useCopilotStore.getState().reset();
     }
-  }, [sessionStore, stopRecordingMutation]);
+  }, [sessionStore, transcriptionStore, stopRecordingMutation]);
 
   const toggleStream = useCallback(
     async (stream: 'microphone' | 'systemAudio' | 'screen') => {
@@ -243,9 +197,7 @@ export function useSession() {
       const currentState = sessionStore.streams[stream];
       sessionStore.toggleStream(stream);
 
-      // If recording, pause/resume the track using standard channel names
       if (sessionStore.status === 'recording') {
-        // Map stream type to standard channel ID
         const channelIdMap: Record<string, string> = {
           microphone: 'mic',
           systemAudio: 'system_audio',

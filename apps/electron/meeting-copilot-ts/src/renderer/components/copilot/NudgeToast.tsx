@@ -22,9 +22,7 @@ import { useCopilot } from '../../hooks/useCopilot';
 import { cn } from '../../lib/utils';
 import type { CopilotNudge } from '../../../shared/types/ipc.types';
 
-// ============================================================================
 // Sub-components
-// ============================================================================
 
 function getNudgeIcon(type: string) {
   switch (type) {
@@ -56,9 +54,7 @@ function getSeverityStyles(severity: string) {
   }
 }
 
-// ============================================================================
 // Main Component
-// ============================================================================
 
 interface NudgeToastProps {
   className?: string;

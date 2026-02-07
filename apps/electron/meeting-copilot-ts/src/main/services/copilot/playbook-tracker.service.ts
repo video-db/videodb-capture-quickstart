@@ -19,9 +19,7 @@ import type { TranscriptSegmentData } from './transcript-buffer.service';
 
 const log = logger.child({ module: 'playbook-tracker' });
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export type PlaybookItemStatus = 'missing' | 'partial' | 'covered';
 
@@ -63,9 +61,7 @@ export interface PlaybookSnapshot {
   recommendations: string[];
 }
 
-// ============================================================================
 // Playbook Tracker Service
-// ============================================================================
 
 export class PlaybookTrackerService {
   private activePlaybook: Playbook | null = null;
@@ -400,9 +396,7 @@ Respond with JSON:
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: PlaybookTrackerService | null = null;
 

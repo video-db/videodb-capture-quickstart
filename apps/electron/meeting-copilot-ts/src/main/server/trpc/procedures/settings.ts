@@ -25,9 +25,7 @@ import {
 } from '../../../db';
 import { v4 as uuid } from 'uuid';
 
-// ============================================================================
 // Input Schemas
-// ============================================================================
 
 const cueCardSchema = z.object({
   objectionType: z.enum(['pricing', 'timing', 'competitor', 'authority', 'security', 'integration', 'not_interested', 'send_info']),
@@ -63,9 +61,7 @@ const settingSchema = z.object({
   description: z.string().optional(),
 });
 
-// ============================================================================
 // Router
-// ============================================================================
 
 export const settingsRouter = router({
   // -------------------------------------------------------------------------

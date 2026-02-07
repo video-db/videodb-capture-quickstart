@@ -14,9 +14,7 @@ import type { ConversationMetrics } from './conversation-metrics.service';
 
 const log = logger.child({ module: 'summary-generator' });
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export interface Evidence {
   segmentId: string;
@@ -68,9 +66,7 @@ export interface FullCallReport {
   segmentCount: number;
 }
 
-// ============================================================================
 // Summary Generator Service
-// ============================================================================
 
 export class SummaryGeneratorService {
   constructor() {}
@@ -467,9 +463,7 @@ Respond with JSON:
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: SummaryGeneratorService | null = null;
 

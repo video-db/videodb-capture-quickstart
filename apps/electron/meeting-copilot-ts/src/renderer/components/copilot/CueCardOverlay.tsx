@@ -30,9 +30,7 @@ import { useCopilot } from '../../hooks/useCopilot';
 import { cn } from '../../lib/utils';
 import type { CopilotCueCard } from '../../../shared/types/ipc.types';
 
-// ============================================================================
 // Sub-components
-// ============================================================================
 
 interface CueCardItemProps {
   cueCard: CopilotCueCard;
@@ -247,9 +245,7 @@ function CueCardItem({ cueCard, isPinned, onDismiss, onPin, onFeedback }: CueCar
   );
 }
 
-// ============================================================================
 // Main Component
-// ============================================================================
 
 interface CueCardOverlayProps {
   className?: string;

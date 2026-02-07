@@ -18,10 +18,6 @@ import type { TranscriptSegmentData } from './transcript-buffer.service';
 
 const log = logger.child({ module: 'conversation-metrics' });
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface ConversationMetrics {
   talkRatio: {
     me: number; // 0-1 percentage
@@ -55,10 +51,6 @@ export interface MetricsTrend {
   paceTrend: 'faster' | 'stable' | 'slower';
 }
 
-// ============================================================================
-// Conversation Metrics Service
-// ============================================================================
-
 export class ConversationMetricsService {
   private readonly MONOLOGUE_THRESHOLD = 45; // seconds
   private readonly IDEAL_TALK_RATIO_MIN = 0.35;
@@ -74,7 +66,6 @@ export class ConversationMetricsService {
     const meSegments = segments.filter(s => s.isFinal && s.channel === 'me');
     const themSegments = segments.filter(s => s.isFinal && s.channel === 'them');
 
-    // DEBUG: Log segment info for WPM calculation
     if (meSegments.length > 0) {
       const totalWords = meSegments.reduce((sum, s) => sum + s.text.trim().split(/\s+/).filter(w => w.length > 0).length, 0);
       const totalDuration = meSegments.reduce((sum, s) => sum + (s.endTime - s.startTime), 0);
@@ -388,9 +379,7 @@ export class ConversationMetricsService {
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: ConversationMetricsService | null = null;
 

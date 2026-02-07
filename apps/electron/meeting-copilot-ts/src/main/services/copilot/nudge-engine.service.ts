@@ -12,9 +12,7 @@ import type { SentimentTrend } from './sentiment-analyzer.service';
 
 const log = logger.child({ module: 'nudge-engine' });
 
-// ============================================================================
 // Types
-// ============================================================================
 
 export type NudgeType =
   | 'monologue'
@@ -45,9 +43,7 @@ export interface NudgeConfig {
   suppressedTypes: NudgeType[];
 }
 
-// ============================================================================
 // Nudge Templates
-// ============================================================================
 
 const NUDGE_TEMPLATES: Record<NudgeType, Array<{
   message: string;
@@ -132,9 +128,7 @@ const NUDGE_TEMPLATES: Record<NudgeType, Array<{
   ],
 };
 
-// ============================================================================
 // Nudge Engine Service
-// ============================================================================
 
 export class NudgeEngineService {
   private lastNudgeTime: number = 0;
@@ -369,9 +363,7 @@ export class NudgeEngineService {
   }
 }
 
-// ============================================================================
 // Singleton Instance
-// ============================================================================
 
 let instance: NudgeEngineService | null = null;
 
