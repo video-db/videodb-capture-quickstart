@@ -33,6 +33,8 @@ npm run setup    # Enter your VideoDB API key
 npm start
 ```
 
+> **Note**: On first run, close the app and run `npm start` again after setup completes.
+
 Get your API key from [console.videodb.io](https://console.videodb.io).
 
 ## Usage

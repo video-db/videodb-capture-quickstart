@@ -495,54 +495,88 @@ ipcMain.handle('recorder-request-permission', async (event, type) => {
 });
 
 // Keep existing permission handlers for Electron APIs
+// Note: systemPreferences permission APIs are macOS-only
+// On Windows, permissions are handled at the browser level via getUserMedia
+
 ipcMain.handle('check-mic-permission', () => {
-  return systemPreferences.getMediaAccessStatus('microphone');
+  if (process.platform === 'darwin') {
+    return systemPreferences.getMediaAccessStatus('microphone');
+  }
+  return 'granted'; // Windows handles this via browser prompt
 });
 
 ipcMain.handle('check-screen-permission', () => {
-  try {
-    const status = systemPreferences.getMediaAccessStatus('screen');
-    return status || 'unknown';
-  } catch (error) {
-    console.error('Screen permission check error:', error);
-    return 'error';
+  if (process.platform === 'darwin') {
+    try {
+      const status = systemPreferences.getMediaAccessStatus('screen');
+      return status || 'unknown';
+    } catch (error) {
+      console.error('Screen permission check error:', error);
+      return 'error';
+    }
   }
+  return 'granted'; // Windows handles this via browser prompt
 });
 
 ipcMain.handle('request-mic-permission', async () => {
-  try {
-    const granted = await systemPreferences.askForMediaAccess('microphone');
-    return { granted, status: granted ? 'granted' : 'denied' };
-  } catch (error) {
-    console.error('Mic permission error:', error);
-    return { granted: false, status: 'error', message: error.message };
+  if (process.platform === 'darwin') {
+    try {
+      const granted = await systemPreferences.askForMediaAccess('microphone');
+      return { granted, status: granted ? 'granted' : 'denied' };
+    } catch (error) {
+      console.error('Mic permission error:', error);
+      return { granted: false, status: 'error', message: error.message };
+    }
   }
+  // Windows: permission handled by browser when getUserMedia is called
+  return { granted: true, status: 'granted' };
 });
 
 // Camera permission handlers
 ipcMain.handle('check-camera-permission', () => {
-  return systemPreferences.getMediaAccessStatus('camera');
+  if (process.platform === 'darwin') {
+    return systemPreferences.getMediaAccessStatus('camera');
+  }
+  return 'granted'; // Windows handles this via browser prompt
 });
 
 ipcMain.handle('request-camera-permission', async () => {
-  try {
-    const granted = await systemPreferences.askForMediaAccess('camera');
-    return { granted, status: granted ? 'granted' : 'denied' };
-  } catch (error) {
-    console.error('Camera permission error:', error);
-    return { granted: false, status: 'error', message: error.message };
+  if (process.platform === 'darwin') {
+    try {
+      const granted = await systemPreferences.askForMediaAccess('camera');
+      return { granted, status: granted ? 'granted' : 'denied' };
+    } catch (error) {
+      console.error('Camera permission error:', error);
+      return { granted: false, status: 'error', message: error.message };
+    }
   }
+  // Windows: permission handled by browser when getUserMedia is called
+  return { granted: true, status: 'granted' };
 });
 
 ipcMain.handle('open-system-settings', async (event, type) => {
   try {
     let url = '';
-    if (type === 'mic') {
-      url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone';
-    } else if (type === 'screen') {
-      url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
-    } else if (type === 'camera') {
-      url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Camera';
+
+    if (process.platform === 'darwin') {
+      // macOS system preferences URLs
+      if (type === 'mic') {
+        url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone';
+      } else if (type === 'screen') {
+        url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
+      } else if (type === 'camera') {
+        url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Camera';
+      }
+    } else if (process.platform === 'win32') {
+      // Windows Settings app URLs
+      if (type === 'mic') {
+        url = 'ms-settings:privacy-microphone';
+      } else if (type === 'camera') {
+        url = 'ms-settings:privacy-webcam';
+      } else if (type === 'screen') {
+        // Windows doesn't have a dedicated screen capture privacy setting
+        url = 'ms-settings:privacy';
+      }
     }
 
     if (url) {
@@ -550,7 +584,7 @@ ipcMain.handle('open-system-settings', async (event, type) => {
       await shell.openExternal(url);
       return { success: true };
     }
-    return { success: false, error: 'Unknown type' };
+    return { success: false, error: 'Unknown type or unsupported platform' };
   } catch (error) {
     console.error('Failed to open system settings:', error);
     return { success: false, error: error.message };
@@ -718,20 +752,23 @@ function createCameraWindow() {
 // IPC Handlers for Camera
 ipcMain.handle('camera-show', async () => {
   if (cameraWindow && !cameraWindow.isDestroyed()) {
-    // Request camera permission before showing (triggers macOS prompt if needed)
-    const cameraStatus = systemPreferences.getMediaAccessStatus('camera');
-    console.log('[Camera] Current permission status:', cameraStatus);
+    // Request camera permission before showing (macOS only)
+    if (process.platform === 'darwin') {
+      const cameraStatus = systemPreferences.getMediaAccessStatus('camera');
+      console.log('[Camera] Current permission status:', cameraStatus);
 
-    if (cameraStatus !== 'granted') {
-      console.log('[Camera] Requesting camera permission...');
-      const granted = await systemPreferences.askForMediaAccess('camera');
-      console.log('[Camera] Permission granted:', granted);
-      if (!granted) {
-        // Open system settings if permission denied
-        shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera');
-        return { success: false, error: 'Camera permission denied' };
+      if (cameraStatus !== 'granted') {
+        console.log('[Camera] Requesting camera permission...');
+        const granted = await systemPreferences.askForMediaAccess('camera');
+        console.log('[Camera] Permission granted:', granted);
+        if (!granted) {
+          // Open system settings if permission denied
+          shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Camera');
+          return { success: false, error: 'Camera permission denied' };
+        }
       }
     }
+    // On Windows, camera permission is handled by the browser when getUserMedia is called
 
     // Lazy load camera.html on first show
     if (!cameraLoaded) {
