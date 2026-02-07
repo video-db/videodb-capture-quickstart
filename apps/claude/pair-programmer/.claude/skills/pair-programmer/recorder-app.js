@@ -1,328 +1,14 @@
 #!/usr/bin/env node
 /**
- * VideoDB Pair Programmer
- *
- * Two modes:
- * - Normal: Electron app for screen recording
- * - MCP mode (--mcp flag): stdio MCP server for Claude Code
- *
- * Usage:
- *   node recorder-app.js        # Run Electron app
- *   node recorder-app.js --mcp  # Run as MCP server (stdio)
+ * VideoDB Pair Programmer - Electron app with HTTP API for screen/audio recording.
+ * Run: node recorder-app.js  or  npm start  (electron .)
  */
 
 const path = require("path");
 const fs = require("fs");
 
 // =============================================================================
-// MCP MODE - When run with --mcp flag, act as stdio MCP server
-// =============================================================================
-
-if (process.argv.includes("--mcp")) {
-  const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
-  const {
-    StdioServerTransport,
-  } = require("@modelcontextprotocol/sdk/server/stdio.js");
-
-  // Context file written by Electron app
-  const PROJECT_ROOT = path.join(__dirname, "..", "..", "..");
-  const CONTEXT_FILE = path.join(PROJECT_ROOT, ".context.json");
-
-  function getContext() {
-    try {
-      if (fs.existsSync(CONTEXT_FILE)) {
-        return JSON.parse(fs.readFileSync(CONTEXT_FILE, "utf8"));
-      }
-    } catch (e) {}
-    return {
-      screen: [],
-      mic: [],
-      system_audio: [],
-      recording: { active: false },
-    };
-  }
-
-  const server = new McpServer({ name: "pair-programmer", version: "1.0.0" });
-
-  // Resources
-  server.resource(
-    "Recent screen descriptions",
-    "context://screen/recent",
-    async () => {
-      const ctx = getContext();
-      return {
-        contents: [
-          {
-            uri: "context://screen/recent",
-            mimeType: "application/json",
-            text: JSON.stringify(
-              {
-                type: "screen",
-                count: ctx.screen.length,
-                records: ctx.screen.slice(-20),
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  server.resource(
-    "Recent mic transcriptions",
-    "context://mic/recent",
-    async () => {
-      const ctx = getContext();
-      return {
-        contents: [
-          {
-            uri: "context://mic/recent",
-            mimeType: "application/json",
-            text: JSON.stringify(
-              {
-                type: "mic",
-                count: ctx.mic.length,
-                records: ctx.mic.slice(-20),
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  server.resource(
-    "Recent system audio",
-    "context://system_audio/recent",
-    async () => {
-      const ctx = getContext();
-      return {
-        contents: [
-          {
-            uri: "context://system_audio/recent",
-            mimeType: "application/json",
-            text: JSON.stringify(
-              {
-                type: "system_audio",
-                count: ctx.system_audio.length,
-                records: ctx.system_audio.slice(-20),
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  server.resource("All context combined", "context://all/recent", async () => {
-    const ctx = getContext();
-    return {
-      contents: [
-        {
-          uri: "context://all/recent",
-          mimeType: "application/json",
-          text: JSON.stringify(
-            {
-              type: "all",
-              counts: {
-                screen: ctx.screen.length,
-                mic: ctx.mic.length,
-                system_audio: ctx.system_audio.length,
-              },
-              records: {
-                screen: ctx.screen.slice(-10),
-                mic: ctx.mic.slice(-10),
-                system_audio: ctx.system_audio.slice(-10),
-              },
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  });
-
-  server.resource("Recording status", "context://status", async () => {
-    const ctx = getContext();
-    return {
-      contents: [
-        {
-          uri: "context://status",
-          mimeType: "application/json",
-          text: JSON.stringify(
-            {
-              recording: ctx.recording,
-              counts: {
-                screen: ctx.screen.length,
-                mic: ctx.mic.length,
-                system_audio: ctx.system_audio.length,
-              },
-              lastUpdated: ctx.lastUpdated,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  });
-
-  // Tools
-  server.tool(
-    "get_screen_context",
-    "Get recent screen descriptions",
-    {
-      limit: { type: "number", description: "Number of records (default: 10)" },
-    },
-    async ({ limit = 10 }) => {
-      const ctx = getContext();
-      const records = ctx.screen.slice(-limit);
-      return {
-        content: [
-          {
-            type: "text",
-            text:
-              records.length > 0
-                ? records.map((r) => `[${r.timestamp}] ${r.text}`).join("\n\n")
-                : "No screen context. Is recorder running?",
-          },
-        ],
-      };
-    }
-  );
-
-  server.tool(
-    "get_audio_context",
-    "Get recent audio transcriptions",
-    {
-      source: { type: "string", description: "mic, system_audio, or all" },
-      limit: { type: "number", description: "Number of records" },
-    },
-    async ({ source = "all", limit = 10 }) => {
-      const ctx = getContext();
-      let records = [];
-      if (source === "mic" || source === "all")
-        records = records.concat(
-          ctx.mic.slice(-limit).map((r) => ({ ...r, source: "mic" }))
-        );
-      if (source === "system_audio" || source === "all")
-        records = records.concat(
-          ctx.system_audio
-            .slice(-limit)
-            .map((r) => ({ ...r, source: "system_audio" }))
-        );
-      if (source === "all") {
-        records.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        records = records.slice(-limit);
-      }
-      return {
-        content: [
-          {
-            type: "text",
-            text:
-              records.length > 0
-                ? records
-                    .map((r) => `[${r.source}] [${r.timestamp}] ${r.text}`)
-                    .join("\n\n")
-                : "No audio context.",
-          },
-        ],
-      };
-    }
-  );
-
-  server.tool(
-    "get_recording_status",
-    "Check recording status",
-    {},
-    async () => {
-      const ctx = getContext();
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                recording: ctx.recording?.active || false,
-                sessionId: ctx.recording?.sessionId,
-                bufferCounts: {
-                  screen: ctx.screen.length,
-                  mic: ctx.mic.length,
-                  system_audio: ctx.system_audio.length,
-                },
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  server.tool(
-    "summarize_recent_activity",
-    "Summarize recent activity",
-    { minutes: { type: "number", description: "Look back N minutes" } },
-    async ({ minutes = 5 }) => {
-      const ctx = getContext();
-      const cutoff = new Date(Date.now() - minutes * 60 * 1000);
-      const recentScreen = ctx.screen.filter(
-        (r) => new Date(r.timestamp) > cutoff
-      );
-      const recentMic = ctx.mic.filter((r) => new Date(r.timestamp) > cutoff);
-      const recentAudio = ctx.system_audio.filter(
-        (r) => new Date(r.timestamp) > cutoff
-      );
-      const summary = [];
-      if (recentScreen.length > 0) {
-        summary.push(`## Screen (${recentScreen.length})`);
-        summary.push(recentScreen.map((r) => `- ${r.text}`).join("\n"));
-      }
-      if (recentMic.length > 0) {
-        summary.push(`\n## Mic (${recentMic.length})`);
-        summary.push(recentMic.map((r) => `- ${r.text}`).join("\n"));
-      }
-      if (recentAudio.length > 0) {
-        summary.push(`\n## System Audio (${recentAudio.length})`);
-        summary.push(recentAudio.map((r) => `- ${r.text}`).join("\n"));
-      }
-      return {
-        content: [
-          {
-            type: "text",
-            text:
-              summary.length > 0
-                ? summary.join("\n")
-                : `No activity in last ${minutes} minutes.`,
-          },
-        ],
-      };
-    }
-  );
-
-  // Run MCP server
-  (async () => {
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error("VideoDB Pair Programmer MCP Server running");
-  })().catch((e) => {
-    console.error("MCP Error:", e);
-    process.exit(1);
-  });
-
-  return; // Don't run Electron code below
-}
-
-// =============================================================================
-// ELECTRON MODE - Normal app mode
+// ELECTRON MODE - App + HTTP API
 // =============================================================================
 
 const {
@@ -341,20 +27,30 @@ const { spawn, execSync } = require("child_process");
 const { connect } = require("videodb");
 const { CaptureClient } = require("videodb/capture");
 
-// Suppress verbose [Recorder Binary] logs from SDK, keep our own error logs
+// Redirect [Recorder Binary] logs to file, keep our own logs in console
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
+const BINARY_LOG_FILE = "/tmp/recorder-binary.log";
+
+// Append to binary log file
+function logToBinaryFile(prefix, ...args) {
+  const timestamp = new Date().toISOString();
+  const message = args.map(a => typeof a === "string" ? a : JSON.stringify(a)).join(" ");
+  fs.appendFileSync(BINARY_LOG_FILE, `[${timestamp}] ${prefix} ${message}\n`);
+}
 
 console.log = (...args) => {
   if (args[0] && typeof args[0] === "string" && args[0].includes("[Recorder Binary")) {
-    return; // Suppress SDK binary verbose logs
+    logToBinaryFile("[LOG]", ...args);
+    return;
   }
   originalConsoleLog.apply(console, args);
 };
 
 console.error = (...args) => {
   if (args[0] && typeof args[0] === "string" && args[0].includes("[Recorder Binary")) {
-    return; // Suppress SDK binary verbose logs
+    logToBinaryFile("[ERR]", ...args);
+    return;
   }
   originalConsoleError.apply(console, args);
 };
@@ -527,6 +223,7 @@ let pickerWindow = null;
 let overlayWindow = null;
 let webhookUrl = null; // Will be set from config or cloudflare tunnel
 let mcpServerProcess = null; // MCP server child process
+let apiHttpServer = null; // HTTP API server, closed on quit to release port
 
 // VideoDB SDK instances
 let conn = null; // Connection to VideoDB
@@ -541,6 +238,8 @@ let recording = {
   sessionId: null,
   startTime: null,
   channels: null,
+  rtstreams: null, // [{ rtstream_id, name, channel_id }] from webhook; kept after stop for search
+  failed: null, // { code, message } when capture_session.failed
 };
 
 function channelIdToDisplayName(channelId) {
@@ -549,6 +248,17 @@ function channelIdToDisplayName(channelId) {
   if (channelId.startsWith("system_audio")) return "system_audio";
   if (channelId.startsWith("display")) return "screen";
   return channelId;
+}
+
+function matchDisplayToChannel(displayLabel, videoChannels) {
+  if (!displayLabel || !Array.isArray(videoChannels) || videoChannels.length === 0)
+    return null;
+  const normalized = (s) => String(s || "").trim().toLowerCase();
+  const label = normalized(displayLabel);
+  const found = videoChannels.find(
+    (c) => normalized(c.name) === label || normalized(c.extras?.name) === label
+  );
+  return found ? found.channelId : null;
 }
 
 function rtstreamNameToDisplayName(nameOrChannelId) {
@@ -579,20 +289,40 @@ function getIndexingConfig() {
 const PROJECT_ROOT = path.join(__dirname, "..", "..", "..");
 const CONTEXT_FILE = path.join(PROJECT_ROOT, ".context.json");
 
-// Context buffer (in-memory + shared file)
+// Three FIFO queues; each has its own max length from config.
+const defaultBufferSize = config.context_buffer_size || 50;
+const maxLen = {
+  screen: config.context_buffer_size_screen ?? defaultBufferSize,
+  mic: config.context_buffer_size_mic ?? defaultBufferSize,
+  system_audio: config.context_buffer_size_system_audio ?? defaultBufferSize,
+};
+
+function fifoPush(q, item, maxLenForQueue) {
+  q.push(item);
+  if (q.length > maxLenForQueue) q.shift();
+}
+
 const contextBuffer = {
   screen: [],
   system_audio: [],
   mic: [],
-  maxSize: config.context_buffer_size || 50,
+  maxLen,
+  lastMicNonFinal: null,
+  lastSystemAudioNonFinal: null,
 
   add(type, record) {
     if (!this[type]) return;
-    this[type].push({ ...record, timestamp: new Date().toISOString() });
-    if (this[type].length > this.maxSize) {
-      this[type].shift();
+    const item = { ...record, timestamp: new Date().toISOString() };
+    if (type === "mic" || type === "system_audio") {
+      const isFinal = record.isFinal === true || record.isFinal === "true";
+      if (!isFinal) {
+        if (type === "mic") this.lastMicNonFinal = item;
+        else this.lastSystemAudioNonFinal = item;
+        this._writeToFile();
+        return;
+      }
     }
-    // Write to shared file for MCP server
+    fifoPush(this[type], item, this.maxLen[type]);
     this._writeToFile();
   },
 
@@ -601,42 +331,34 @@ const contextBuffer = {
   },
 
   getAll() {
-    return {
-      screen: this.screen,
-      system_audio: this.system_audio,
-      mic: this.mic,
-    };
+    return { screen: this.screen, system_audio: this.system_audio, mic: this.mic };
   },
 
-  _filterFinalPlusLastNonFinal(arr) {
-    const isNonFinal = (r) => r.isFinal === false || r.isFinal === "false";
-    const finals = arr.filter((r) => !isNonFinal(r));
-    const lastNonFinal = [...arr].reverse().find(isNonFinal);
-    if (lastNonFinal) finals.push(lastNonFinal);
-    return finals;
-  },
-
-  // Write context to shared file for MCP server
   _writeToFile() {
     try {
-      const micForFile = this._filterFinalPlusLastNonFinal(this.mic);
-      const systemAudioForFile = this._filterFinalPlusLastNonFinal(this.system_audio);
-
-      const data = {
-        screen: this.screen,
-        system_audio: systemAudioForFile,
-        mic: micForFile,
-        recording: {
-          active: recording.active,
-          sessionId: recording.sessionId,
-          startTime: recording.startTime,
-        },
-        lastUpdated: new Date().toISOString(),
-      };
-      fs.writeFileSync(CONTEXT_FILE, JSON.stringify(data, null, 2));
-    } catch (e) {
-      // Ignore write errors
-    }
+      const micForFile = this.lastMicNonFinal ? [...this.mic, this.lastMicNonFinal] : this.mic;
+      const systemAudioForFile = this.lastSystemAudioNonFinal
+        ? [...this.system_audio, this.lastSystemAudioNonFinal]
+        : this.system_audio;
+      fs.writeFileSync(
+        CONTEXT_FILE,
+        JSON.stringify(
+          {
+            screen: this.screen,
+            system_audio: systemAudioForFile,
+            mic: micForFile,
+            recording: {
+              active: recording.active,
+              sessionId: recording.sessionId,
+              startTime: recording.startTime,
+            },
+            lastUpdated: new Date().toISOString(),
+          },
+          null,
+          2
+        )
+      );
+    } catch (e) {}
   },
 };
 
@@ -708,6 +430,7 @@ async function createSession() {
 function setupCaptureClientEvents() {
   captureClient.on("recording:started", async (data) => {
     console.log("Recording started:", data);
+    recording.failed = null;
     recording.active = true;
     recording.sessionId = captureSession.id;
     recording.startTime = Date.now();
@@ -725,6 +448,7 @@ function setupCaptureClientEvents() {
     recording.starting = false;
     recording.startTime = null;
     recording.channels = null;
+    recording.failed = null;
     updateTray();
     pushOverlayStatus();
 
@@ -820,6 +544,7 @@ async function startIndexingForRTStreams(rtstreams) {
               value: indexingConfig.visual.batch_time, 
               frameCount: indexingConfig.visual.frame_count 
             },
+            modelName: "mini",
             socketId: wsConnection.connectionId,
           };
           console.log(`[Indexing] Starting visual indexing for ${name}:`, JSON.stringify(visualOpts, null, 2));
@@ -882,7 +607,6 @@ async function listenToWebSocketEvents() {
   try {
     for await (const ev of wsConnection.receive()) {
       const channel = ev.channel || ev.type;
-      console.log(`[WS] Received event: ${channel}`);
 
       if (channel === "transcript") {
         const text = ev.data?.text;
@@ -891,7 +615,6 @@ async function listenToWebSocketEvents() {
           : "mic";
         const rawFinal = ev.data?.is_final;
         const isFinal = rawFinal === true || rawFinal === "true";
-        console.log(`[WS] Transcript (${transcriptType}): ${text?.substring(0, 50)}...`);
         contextBuffer.add(transcriptType, {
           text: text,
           isFinal,
@@ -951,6 +674,7 @@ async function startRecording(selectedChannels, indexingConfigOverride = null) {
 
     // List available channels
     const availableChannels = await captureClient.listChannels();
+    console.log("this is avaiable channels output", availableChannels)
     console.log(
       "Available channels:",
       availableChannels.map((c) => c.channelId)
@@ -1016,9 +740,8 @@ async function stopRecording() {
 // Screen Picker
 // =============================================================================
 
-function showRecordingPicker() {
+function showRecordingPicker(videoChannels = []) {
   console.log("[Picker] showRecordingPicker called");
-  
   return new Promise((resolve) => {
     if (pickerWindow) {
       console.log("[Picker] Window already exists, focusing");
@@ -1026,12 +749,18 @@ function showRecordingPicker() {
       return resolve(null);
     }
 
-    const displays = screen.getAllDisplays().map((d) => ({
-      width: d.size.width,
-      height: d.size.height,
-      id: d.id,
-    }));
-    console.log("[Picker] Found displays:", displays);
+    const displays = screen.getAllDisplays().map((d) => {
+      const label = d.label || `Display ${d.id}`;
+      const channelId = matchDisplayToChannel(label, videoChannels);
+      return {
+        width: d.size.width,
+        height: d.size.height,
+        id: d.id,
+        label,
+        channelId: channelId || `display:${d.id}`,
+      };
+    });
+    console.log("[Picker] Found displays (with channelId):", displays);
 
     const pickerPath = path.join(__dirname, "ui", "picker.html");
     console.log("[Picker] Loading picker from:", pickerPath);
@@ -1142,6 +871,7 @@ function pushOverlayStatus() {
   overlayWindow.webContents.send("overlay-status", {
     recording: recording.active,
     starting: recording.starting,
+    failed: recording.failed,
     duration,
     channels: recording.channels || [],
   });
@@ -1245,20 +975,30 @@ function buildTrayMenu() {
       },
     });
   } else {
-    menu.push({ label: "Ready to Record", enabled: false });
+    const hintLabel = recording.failed
+      ? "Recording failed — run /record in Claude to try again"
+      : "Ready to Record";
+    menu.push({ label: hintLabel, enabled: false });
     menu.push({ type: "separator" });
     menu.push({
       label: "Start Recording",
       click: async () => {
         console.log("[Tray] Start Recording clicked");
-        const pickerResult = await showRecordingPicker();
+        if (!captureSession || !captureClient) await createSession();
+        let videoChannels = [];
+        try {
+          const available = await captureClient.listChannels();
+          videoChannels = (available || []).filter((c) => c.type === "video");
+        } catch (e) {
+          console.warn("[Tray] listChannels failed, picker will use fallback:", e.message);
+        }
+        const pickerResult = await showRecordingPicker(videoChannels);
         console.log("[Tray] Picker returned:", pickerResult);
         if (!pickerResult) {
           console.log("[Tray] No picker result, cancelled");
           return;
         }
 
-        // Build channels from picker result
         const channels = [];
         if (pickerResult.mic) {
           channels.push({
@@ -1277,7 +1017,7 @@ function buildTrayMenu() {
           });
         }
         channels.push({
-          channelId: `display:${pickerResult.display}`,
+          channelId: pickerResult.displayChannelId,
           type: "video",
           record: true,
           store: true,
@@ -1360,7 +1100,22 @@ function createTray() {
 // HTTP API Server (for CLI control + MCP SSE)
 // =============================================================================
 
+function killProcessOnPort(port) {
+  if (process.platform === "win32") return;
+  try {
+    const out = execSync(`lsof -i :${port} -t 2>/dev/null`, { encoding: "utf8" });
+    const pids = out.trim().split(/\n/).filter(Boolean);
+    for (const pid of pids) {
+      try {
+        process.kill(parseInt(pid, 10), "SIGKILL");
+      } catch (_) {}
+    }
+    if (pids.length) console.log(`Killed previous process(es) on port ${port}: ${pids.join(", ")}`);
+  } catch (_) {}
+}
+
 function startAPIServer() {
+  killProcessOnPort(API_PORT);
   try {
     if (fs.existsSync(CONTEXT_FILE)) fs.unlinkSync(CONTEXT_FILE);
   } catch (_) {}
@@ -1388,9 +1143,11 @@ function startAPIServer() {
     try {
       // Root endpoint - show available routes
       if ((url === "/" || url === "/api") && req.method === "GET") {
+        const base = `http://localhost:${API_PORT}`;
         result = {
           status: "ok",
           name: "VideoDB Recorder API",
+          recording: recording.active,
           endpoints: {
             "GET /api/status": "Get recording status",
             "POST /api/record/start": "Start recording",
@@ -1398,9 +1155,19 @@ function startAPIServer() {
             "POST /api/overlay/show": "Show overlay { text?: string, loading?: boolean }",
             "POST /api/overlay/hide": "Hide overlay",
             "GET /api/context/:type": "Get context (screen/mic/system_audio/all)",
+            "POST /api/rtstream/search": "Search within RTStream (body: rtstream_id, query); rtstream_id from GET /api/status",
             "POST /webhook": "VideoDB webhook endpoint",
           },
-          recording: recording.active,
+          usage: {
+            status: `curl -s ${base}/api/status`,
+            "record/start": `curl -s -X POST ${base}/api/record/start -H "Content-Type: application/json" -d '{}'`,
+            "record/start_with_config": `curl -s -X POST ${base}/api/record/start -H "Content-Type: application/json" -d '{"indexing_config":{"visual":{"prompt":"Focus on code"}}}'`,
+            "record/stop": `curl -s -X POST ${base}/api/record/stop -H "Content-Type: application/json"`,
+            "overlay/show": `curl -s -X POST ${base}/api/overlay/show -H "Content-Type: application/json" -d '{"text":"Message"}' or -d '{"loading":true}'`,
+            "overlay/hide": `curl -s -X POST ${base}/api/overlay/hide -H "Content-Type: application/json"`,
+            "context": `curl -s ${base}/api/context/<type>  (type: screen, mic, system_audio, all)`,
+            "rtstream/search": `curl -s -X POST ${base}/api/rtstream/search -H "Content-Type: application/json" -d '{"rtstream_id":"<id>","query":"keywords"}'`,
+          },
         };
       } else if (url === "/api/status" && req.method === "GET") {
         result = {
@@ -1415,17 +1182,47 @@ function startAPIServer() {
             mic: contextBuffer.mic.length,
             system_audio: contextBuffer.system_audio.length,
           },
+          rtstreams: recording.rtstreams || [],
         };
+      } else if (url === "/api/rtstream/search" && req.method === "POST") {
+        const rtstreamId = body.rtstream_id || body.rtstreamId;
+        const query = body.query;
+        if (!rtstreamId || !query || typeof query !== "string") {
+          result = { status: "error", error: "rtstream_id and query (string) required" };
+        } else {
+          try {
+            if (!conn) {
+              result = { status: "error", error: "Not connected to VideoDB" };
+            } else {
+              const coll = await conn.getCollection();
+              const rtstream = await coll.getRTStream(rtstreamId);
+              const searchResult = await rtstream.search({query});
+              const serialized = searchResult?.shots != null
+                ? { shots: searchResult.shots }
+                : (searchResult && typeof searchResult === "object" ? { ...searchResult } : { data: searchResult });
+              result = { status: "ok", ...serialized };
+            }
+          } catch (e) {
+            result = { status: "error", error: e.message };
+          }
+        }
       } else if (url === "/api/record/start" && req.method === "POST") {
         // If no channels specified, show picker to let user select
         if (!body.channels) {
           console.log("[API] No channels specified, showing picker");
-          const pickerResult = await showRecordingPicker();
+          if (!captureSession || !captureClient) await createSession();
+          let videoChannels = [];
+          try {
+            const available = await captureClient.listChannels();
+            videoChannels = (available || []).filter((c) => c.type === "video");
+          } catch (e) {
+            console.warn("[API] listChannels failed, picker will use fallback:", e.message);
+          }
+          const pickerResult = await showRecordingPicker(videoChannels);
           console.log("[API] Picker returned:", pickerResult);
           if (!pickerResult) {
             result = { status: "cancelled", error: "User cancelled picker" };
           } else {
-            // Build channels from picker result
             const channels = [];
             if (pickerResult.mic) {
               channels.push({
@@ -1444,7 +1241,7 @@ function startAPIServer() {
               });
             }
             channels.push({
-              channelId: `display:${pickerResult.display}`,
+              channelId: pickerResult.displayChannelId,
               type: "video",
               record: true,
               store: true,
@@ -1488,7 +1285,7 @@ function startAPIServer() {
 
   server.listen(API_PORT, "127.0.0.1", () => {
     console.log(`✓ API server running on http://localhost:${API_PORT}`);
-    console.log(`✓ MCP SSE endpoint: http://localhost:${API_PORT}/sse`);
+    console.log(`✓ API base: http://localhost:${API_PORT}`);
   });
 
   server.on("error", (e) => {
@@ -1496,6 +1293,8 @@ function startAPIServer() {
       console.warn(`Port ${API_PORT} in use, API server disabled`);
     }
   });
+
+  apiHttpServer = server;
 }
 
 // Handle incoming webhook events
@@ -1509,31 +1308,45 @@ async function handleWebhookEvent(body) {
     console.log("[Webhook] Session is ACTIVE!");
     
     const data = body.data || {};
-    const rtstreams = data.rtstreams || [];
-    
+    const rtstreams = data.rtstreams || data.streams || data.channels || [];
+    if (rtstreams.length === 0 && data && typeof data === "object") {
+      console.log("[Webhook] No rtstreams in data. Keys received:", Object.keys(data));
+    }
     console.log(`[Webhook] Found ${rtstreams.length} RTStreams in payload`);
     
     // Check if this is our session (captureSession exists = we initiated recording)
     const isOurSession = captureSession && captureSession.id === sessionId;
+
+    console.log("these are rtsreasj", rtstreams)
     
-    // Start indexing if we have a session and haven't started already
-    if (isOurSession && !wsConnection) {
-      // Mark recording as active (webhook arrived before local event)
-      recording.starting = false;
-      recording.active = true;
-      recording.sessionId = sessionId;
-      recording.startTime = recording.startTime || Date.now();
-      const channelNames = rtstreams.map((r) =>
-        rtstreamNameToDisplayName(r.name || r.channel_id)
-      );
-      recording.channels = [...new Set(channelNames)];
-      updateTray();
-      pushOverlayStatus();
-      await startIndexingForRTStreams(rtstreams);
-    } else if (!isOurSession) {
+    if (isOurSession) {
+      console.log("our session")
+      const normalized = (rtstreams || []).map((r) => ({
+        rtstream_id: r.rtstream_id,
+        name: r.name,
+      }));
+      console.log("normailzed", normalized)
+      recording.rtstreams = normalized;
+      if (!recording.active) {
+        recording.starting = false;
+        recording.failed = null;
+        recording.active = true;
+        recording.sessionId = sessionId;
+        recording.startTime = recording.startTime || Date.now();
+        const channelNames = rtstreams.map((r) =>
+          rtstreamNameToDisplayName(r.name || r.channel_id)
+        );
+        recording.channels = [...new Set(channelNames)];
+        updateTray();
+        pushOverlayStatus();
+      }
+      if (!wsConnection) {
+        await startIndexingForRTStreams(rtstreams);
+      } else {
+        console.log("[Webhook] Indexing already started, rtstreams stored for status.");
+      }
+    } else {
       console.log(`[Webhook] Not our session (expected: ${captureSession?.id}, got: ${sessionId}), skipping`);
-    } else if (wsConnection) {
-      console.log("[Webhook] Indexing already started, skipping");
     }
   } else if (eventType === "capture_session.stopped" || eventType === "recorder.session.stopped") {
     console.log("[Webhook] Session stopped");
@@ -1541,6 +1354,7 @@ async function handleWebhookEvent(body) {
     recording.starting = false;
     recording.sessionId = null;
     recording.channels = null;
+    recording.failed = null;
     updateTray();
     pushOverlayStatus();
     if (wsConnection) {
@@ -1552,6 +1366,7 @@ async function handleWebhookEvent(body) {
   } else if (eventType === "capture_session.starting") {
     console.log("[Webhook] Session starting");
     recording.starting = true;
+    recording.failed = null;
     pushOverlayStatus();
   } else if (eventType === "capture_session.stopping") {
     console.log("[Webhook] Session stopping");
@@ -1559,13 +1374,20 @@ async function handleWebhookEvent(body) {
     const exportedId = body.data?.exported_video_id;
     console.log("[Webhook] Session exported", exportedId ? `video_id: ${exportedId}` : "");
   } else if (eventType === "capture_session.failed") {
-    console.error("[Webhook] Session failed:", body.data?.error || body.data);
+    const err = body.data?.error || body.data || {};
+    console.error("[Webhook] Session failed:", err);
     recording.active = false;
     recording.starting = false;
     recording.sessionId = null;
     recording.channels = null;
+    const message = err.message || "Recording failed";
+    recording.failed = { code: err.code || "RECORDING_FAILED", message };
     updateTray();
     pushOverlayStatus();
+    new Notification({
+      title: "VideoDB Recording Failed",
+      body: `${message}. Run /record again in Claude to start a new recording.`,
+    }).show();
     if (wsConnection) {
       await wsConnection.close();
       wsConnection = null;
@@ -1588,10 +1410,7 @@ function registerAssistantShortcut() {
 
   const registered = globalShortcut.register(shortcut, () => {
     console.log(`[Assistant] Shortcut ${shortcut} triggered`);
-    spawn("node", [path.join(__dirname, "recorder-control.js"), "overlay-show", "--loading"], {
-      stdio: "ignore",
-      env: { ...process.env, RECORDER_PORT: String(API_PORT) },
-    });
+    showOverlay("", { loading: true });
 
     console.log("[Assistant] Running claude -c -p '/trigger' ...");
     const child = spawn("claude", ["-c", "-p", "/trigger"], {
@@ -1689,31 +1508,45 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", async () => {
-  // Unregister shortcuts
-  globalShortcut.unregisterAll();
-  
-  if (captureClient) {
+let quitHandled = false;
+app.on("before-quit", (e) => {
+  if (quitHandled) return;
+  quitHandled = true;
+  e.preventDefault();
+  (async () => {
+    globalShortcut.unregisterAll();
+    if (tray) {
+      tray.destroy();
+      tray = null;
+    }
+    if (apiHttpServer) {
+      try {
+        await Promise.race([
+          new Promise((resolve) => apiHttpServer.close(() => resolve())),
+          new Promise((r) => setTimeout(r, 2000)),
+        ]);
+        apiHttpServer.unref();
+        apiHttpServer = null;
+      } catch (_) {}
+    }
+    if (captureClient) {
+      try {
+        await captureClient.stopCaptureSession();
+        await captureClient.shutdown();
+      } catch (_) {}
+    }
+    if (wsConnection) {
+      await wsConnection.close();
+    }
+    await TunnelManager.stop();
     try {
-      await captureClient.stopCaptureSession();
-      await captureClient.shutdown();
-    } catch (e) {
-      // Ignore shutdown errors
-    }
-  }
-  if (wsConnection) {
-    await wsConnection.close();
-  }
-  // Stop cloudflare tunnel
-  await TunnelManager.stop();
-  // Clean up context file
-  try {
-    if (fs.existsSync(CONTEXT_FILE)) {
-      fs.unlinkSync(CONTEXT_FILE);
-    }
-  } catch (e) {
-    // Ignore cleanup errors
-  }
+      if (fs.existsSync(CONTEXT_FILE)) fs.unlinkSync(CONTEXT_FILE);
+    } catch (_) {}
+    app.exit(0);
+  })().catch((err) => {
+    console.error("[Quit] Cleanup error:", err);
+    app.exit(1);
+  });
 });
 
 // =============================================================================

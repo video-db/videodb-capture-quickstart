@@ -4,9 +4,6 @@ node_modules/
 # Config with secrets
 .claude/skills/pair-programmer/config.json
 
-# Override global ignore - include settings.local.json in repo
-!.claude/settings.local.json
-
 # Shared context file (runtime)
 .context.json
 

@@ -1,97 +1,83 @@
-# VideoDB Pair Programmer
+# VideoDB Pair Programmer – HTTP API
 
-AI pair programming with real-time screen and audio context.
+AI pair programming with real-time screen and audio context. Control everything via the **recorder HTTP API** (no MCP). Port is in `.claude/skills/pair-programmer/config.json` as `recorder_port` (default **8899**).
+
+**Base URL:** `http://127.0.0.1:PORT` (replace PORT with config value).
 
 ---
 
 ## On Session Start
 
-**When a new session starts and the user hasn't requested any specific action**, immediately run:
-
-```bash
-/record-config
-```
-
-This verifies setup, checks configuration, and starts the recorder if needed. Do this proactively before waiting for user input.
+When a new session starts and the user hasn’t requested anything specific, run `/record-config` to verify setup and start the recorder if needed.
 
 ---
 
-## Automatic Lifecycle
+## Lifecycle
 
-**Session Start**:
-- Installs dependencies if needed (`npm install`)
-- If config complete (`setup: true`) → starts recorder automatically
-- If config incomplete → prompts to run `/record-config`
-
-**Session End**: Stops the recorder app automatically.
-
-**After `/record-config`**: Runs `start-recorder.sh` to start the app immediately.
+- **Session Start:** If config is complete, starts the recorder; if deps missing, prompts to run `/record-config` (npm install runs on demand there).
+- **Session End:** Stops the recorder app.
+- **After `/record-config`:** Installs deps if needed, runs `start-recorder.sh` to start the app.
 
 ---
 
-## Commands
+## HTTP API Reference
+
+All requests: `Content-Type: application/json` for POST. Port from config (`recorder_port`, default 8899).
+
+| Method | Path | Description | Params / Body |
+|--------|------|-------------|---------------|
+| GET | `/` or `/api` | List endpoints and curl examples | — |
+| GET | `/api/status` | Recording status, sessionId, duration, bufferCounts, **rtstreams** | — |
+| POST | `/api/record/start` | Start recording (opens picker if no channels) | Optional: `{ "indexing_config": { "visual": { "prompt": "..." }, "mic": { "enabled": true }, "system_audio": { ... } } }` |
+| POST | `/api/record/stop` | Stop recording | — |
+| GET | `/api/context/:type` | Recent context (screen / mic / system_audio / all) | type = `screen` \| `mic` \| `system_audio` \| `all` |
+| POST | `/api/overlay/show` | Show overlay (text or loading) | `{ "text": "Message" }` or `{ "loading": true }` |
+| POST | `/api/overlay/hide` | Hide overlay | — |
+| POST | `/api/rtstream/search` | Search indexed content in a stream | `{ "rtstream_id": "<id from status>", "query": "keywords" }` |
+
+**Status response** includes `rtstreams`: array of `{ rtstream_id, name, channel_id }`. Use `rtstream_id` in `POST /api/rtstream/search` for semantic search. Use keyword-rich queries.
+
+**Context** is the last N items (screen, mic, system_audio). `/api/context/all` returns all three combined.
+
+---
+
+## Commands (slash commands)
 
 | Command | Description |
 |---------|-------------|
-| `/record` | Start/stop recording |
-| `/record-status` | Check recording status |
-| `/refresh-context` | Get all context (screen + audio) |
-| `/refresh-screen` | Get screen descriptions only |
-| `/refresh-audio` | Get audio transcriptions only |
-| `/show-overlay` | Display overlay on screen |
-| `/hide-overlay` | Hide the overlay |
-| `/what-happened` | Summarize recent activity |
+| `/record` | Start or stop recording (uses API) |
+| `/record-status` | Recording status (GET /api/status) |
+| `/refresh-context` | Get all context (GET /api/context/all) |
+| `/what-happened` | Summarize recent activity from context |
 | `/record-config` | Configure API key and settings |
+| `/trigger` | Shortcut: analyze context and show result in overlay (POST overlay/show with message) |
 
-## First Time Setup
+See `.claude/commands/<name>.md` for how each command calls the server (params and curl examples).
 
-On first use (or if `setup: false` in config), run `/record-config` to:
-1. Set your VideoDB API key
-2. Configure optional settings (backend URL, webhook, port)
+---
 
-After setup, everything is automatic.
+## First-time setup
 
-## Workflow
+Run `/record-config`: set VideoDB API key, then start recorder via `bash .claude/hooks/start-recorder.sh`.
 
-1. **Start recording**: `/record`
-2. **Get context**: `/refresh-context`
-3. **Stop recording**: `/record`
-
-## MCP Resources
-
-| Resource | Description |
-|----------|-------------|
-| `context://screen/recent` | Screen descriptions |
-| `context://mic/recent` | Mic transcriptions |
-| `context://system_audio/recent` | System audio |
-| `context://all/recent` | All combined |
-| `context://status` | Recording status |
-
-## MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `get_screen_context` | Get screen descriptions |
-| `get_audio_context` | Get audio transcriptions |
-| `get_recording_status` | Check status |
-| `summarize_recent_activity` | Summarize recent |
+---
 
 ## Files
 
 ```
-vdb-pp-sdk-2/
+<project root>/
 ├── package.json
-├── .mcp.json
 └── .claude/
     ├── hooks/
-    │   ├── ensure-recorder.sh   # SessionStart: check config & start
+    │   ├── ensure-recorder.sh   # SessionStart: deps + start recorder
     │   ├── start-recorder.sh    # Manual start after /record-config
-    │   └── cleanup-recorder.sh  # SessionEnd: stop
-    ├── settings.json            # Hook configuration
-    ├── commands/                # Slash commands
+    │   └── cleanup-recorder.sh  # SessionEnd: stop recorder
+    ├── settings.json
+    ├── commands/                # Slash command definitions (use API)
     └── skills/pair-programmer/
-        ├── config.json          # Configuration (setup flag + settings)
-        ├── recorder-app.js      # Electron app
-        ├── recorder-control.js  # CLI controller
+        ├── config.json         # recorder_port, API key, indexing
+        ├── recorder-app.js     # Electron app + HTTP API server
         └── ui/
 ```
+
+Config: `.claude/skills/pair-programmer/config.json` — `recorder_port` (default 8899), `videodb_api_key`, and optional indexing/context settings.

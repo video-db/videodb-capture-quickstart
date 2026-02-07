@@ -149,6 +149,21 @@
     .status-starting.visible {
       display: block;
     }
+    .status-failed {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .status-failed.visible {
+      display: flex;
+    }
+    .status-failed-message {
+      color: #ff453a;
+    }
+    .status-failed-hint {
+      color: #86868b;
+      font-size: 10px;
+    }
   </style>
 </head>
 <body>
@@ -170,6 +185,10 @@
       </div>
       <div class="status-starting" id="statusStarting">
         Starting
+      </div>
+      <div class="status-failed" id="statusFailed">
+        <span class="status-failed-message" id="statusFailedMessage">Recording failed</span>
+        <span class="status-failed-hint">Run /record again in Claude to start a new recording.</span>
       </div>
       <div class="status-channels" id="statusChannels"></div>
     </div>
@@ -195,16 +214,27 @@
     ipcRenderer.on('overlay-status', (event, data) => {
       const notRecordingEl = document.getElementById('statusNotRecording');
       const startingEl = document.getElementById('statusStarting');
+      const failedEl = document.getElementById('statusFailed');
+      const failedMessageEl = document.getElementById('statusFailedMessage');
       const channelsEl = document.getElementById('statusChannels');
 
-      if (data.starting) {
+      if (data.failed) {
+        notRecordingEl.classList.remove('visible');
+        startingEl.classList.remove('visible');
+        failedEl.classList.add('visible');
+        channelsEl.classList.remove('visible');
+        channelsEl.innerHTML = '';
+        failedMessageEl.textContent = data.failed.message || 'Recording failed';
+      } else if (data.starting) {
         notRecordingEl.classList.remove('visible');
         startingEl.classList.add('visible');
+        failedEl.classList.remove('visible');
         channelsEl.classList.remove('visible');
         channelsEl.innerHTML = '';
       } else if (data.recording) {
         notRecordingEl.classList.remove('visible');
         startingEl.classList.remove('visible');
+        failedEl.classList.remove('visible');
         channelsEl.classList.add('visible');
         const names = (data.channels && data.channels.length) ? data.channels : ['Recording'];
         channelsEl.innerHTML = names.map(function (name) {
@@ -213,6 +243,7 @@
       } else {
         notRecordingEl.classList.add('visible');
         startingEl.classList.remove('visible');
+        failedEl.classList.remove('visible');
         channelsEl.classList.remove('visible');
         channelsEl.innerHTML = '';
       }

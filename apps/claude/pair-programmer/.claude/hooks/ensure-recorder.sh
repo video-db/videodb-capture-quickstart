@@ -5,7 +5,7 @@
 PROJECT_DIR="$CLAUDE_PROJECT_DIR"
 CONFIG_FILE="$PROJECT_DIR/.claude/skills/pair-programmer/config.json"
 
-# Check if dependencies are installed (don't auto-install - session hook has timeout)
+# Check if dependencies are installed (don't auto-install; /record-config does it on demand)
 if [ ! -d "$PROJECT_DIR/node_modules" ] || [ ! -f "$PROJECT_DIR/node_modules/.bin/electron" ]; then
   echo '⚠️ Dependencies not installed.
 

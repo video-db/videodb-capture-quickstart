@@ -367,12 +367,13 @@
   <script>
     const { ipcRenderer, desktopCapturer } = require('electron');
 
-    let selectedDisplay = 1;
+    let selectedChannelId = null;
     let displays = [];
     let thumbnails = {};
 
     ipcRenderer.on('displays', async (event, data) => {
       displays = data;
+      if (displays.length) selectedChannelId = displays[0].channelId;
       await loadThumbnails();
       renderDisplays();
     });
@@ -383,7 +384,6 @@
           types: ['screen'],
           thumbnailSize: { width: 320, height: 200 }
         });
-        
         sources.forEach((source, index) => {
           if (source.thumbnail) {
             thumbnails[index + 1] = source.thumbnail.toDataURL();
@@ -400,13 +400,13 @@
 
       displays.forEach((display, index) => {
         const displayNum = index + 1;
+        const isSelected = display.channelId === selectedChannelId;
         const div = document.createElement('div');
-        div.className = `display-option ${displayNum === selectedDisplay ? 'selected' : ''}`;
-        div.onclick = () => selectDisplay(displayNum);
+        div.className = `display-option ${isSelected ? 'selected' : ''}`;
+        div.onclick = () => selectDisplay(display.channelId);
 
         const thumbDiv = document.createElement('div');
         thumbDiv.className = 'display-thumbnail';
-        
         if (thumbnails[displayNum]) {
           const img = document.createElement('img');
           img.src = thumbnails[displayNum];
@@ -424,7 +424,7 @@
         const infoDiv = document.createElement('div');
         infoDiv.className = 'display-info';
         infoDiv.innerHTML = `
-          <span class="display-name">Display ${displayNum}</span>
+          <span class="display-name">${display.label || 'Display ' + displayNum}</span>
           <span class="display-res">${display.width}×${display.height}</span>
         `;
 
@@ -434,10 +434,10 @@
       });
     }
 
-    function selectDisplay(index) {
-      selectedDisplay = index;
+    function selectDisplay(channelId) {
+      selectedChannelId = channelId;
       document.querySelectorAll('.display-option').forEach((el, i) => {
-        el.classList.toggle('selected', i === index - 1);
+        el.classList.toggle('selected', displays[i] && displays[i].channelId === channelId);
       });
     }
 
@@ -447,7 +447,7 @@
 
     function start() {
       ipcRenderer.send('picker-result', {
-        display: selectedDisplay,
+        displayChannelId: selectedChannelId,
         mic: document.getElementById('mic').checked,
         systemAudio: document.getElementById('systemAudio').checked,
       });

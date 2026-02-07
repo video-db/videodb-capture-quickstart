@@ -1,36 +1,17 @@
 ---
-description: Check recording status and buffer counts
+description: Check recording status via the recorder HTTP API
 ---
 
-Get the current recording status.
+Get current recording status from the server.
 
-## Step 1: Run /record-config (REQUIRED)
-
-**BEFORE doing anything else**, run:
-
-```
-/record-config
-```
-
-This ensures the recorder is configured and running.
-
-**Only proceed to Step 2 after /record-config confirms ready.**
-
-## Step 2: Get Status
+**Port:** Read `recorder_port` from `.claude/skills/pair-programmer/config.json` (default 8899).
 
 ```bash
-node .claude/skills/pair-programmer/recorder-control.js status
+curl -s http://127.0.0.1:PORT/api/status
 ```
 
-## Output
+Response (JSON): `recording` (bool), `sessionId`, `duration`, `bufferCounts` (screen, mic, system_audio), **rtstreams** (array of `{ rtstream_id, name, channel_id }`). Use `rtstream_id` with `POST /api/rtstream/search` to search indexed content.
 
-- Recording state (active/inactive)
-- Session ID (if recording)
-- Duration (if recording)
-- Buffer counts for screen, mic, system_audio
+If the request fails (e.g. connection refused), report that the recorder is not running and suggest running `/record-config` or `bash .claude/hooks/start-recorder.sh`.
 
-## Response
-
-Report status in a concise format:
-- If recording: "Recording active for Xs with Y context items"
-- If not recording: "Not recording. X items in buffer from last session"
+Report concisely: e.g. "Recording active for Xs with Y context items" or "Not recording. X items in buffer from last session." Mention available rtstream IDs when present so the assistant can search the past if the user asks.

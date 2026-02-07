@@ -1,18 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "mcp__pair-programmer__get_screen_context",
-      "mcp__pair-programmer__get_audio_context",
       "Skill(trigger)",
-      "Bash(node .claude/skills/pair-programmer/recorder-control.js:*)",
+      "Skill(record)",
+      "Skill(record-status)",
+      "Skill(refresh-context)",
+      "Skill(what-happened)",
+      "Skill(record-config)",
+      "Bash(bash:*)",
+      "Bash(curl:*)",
       "Bash(lsof:*)",
       "Bash(node:*)",
-      "Skill(record)",
-      "Skill(record-control)"
+      "Read"
     ]
-  },
-  "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [
-    "pair-programmer"
-  ]
+  }
 }
