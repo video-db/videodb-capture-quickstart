@@ -2,6 +2,8 @@
 
 A desktop application for recording sales calls with real-time transcription and AI-powered insights. Built with Electron, React, and VideoDB.
 
+![Sales Copilot](screenshot.png)
+
 ## Features
 
 ### Recording & Transcription
