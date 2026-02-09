@@ -670,22 +670,30 @@ async function checkAndRequestPermissions() {
     return { screen: "granted", microphone: "granted" };
   }
 
-  // Microphone: triggers OS dialog if status is "not-determined"
-  const micGranted = await systemPreferences.askForMediaAccess("microphone");
+  // Request via CaptureClient (triggers OS dialogs from the recorder binary)
+  if (captureClient) {
+    try {
+      console.log("Requesting permissions via CaptureClient...");
+      await captureClient.requestPermission("microphone");
+      await captureClient.requestPermission("screen-capture");
+    } catch (e) {
+      console.warn("CaptureClient permission request failed:", e.message);
+    }
+  } else {
+    // Fallback: use Electron APIs if captureClient isn't available
+    await systemPreferences.askForMediaAccess("microphone");
+  }
 
-  // Screen recording: can only check, macOS doesn't allow programmatic request
+  // Check final status
   const screenStatus = systemPreferences.getMediaAccessStatus("screen");
+  const micStatus = systemPreferences.getMediaAccessStatus("microphone");
 
-  const permissions = {
-    screen: screenStatus,
-    microphone: micGranted ? "granted" : "denied",
-  };
-
+  const permissions = { screen: screenStatus, microphone: micStatus };
   console.log("Permissions:", JSON.stringify(permissions));
 
   const missing = [];
   if (screenStatus !== "granted") missing.push("Screen Recording");
-  if (!micGranted) missing.push("Microphone");
+  if (micStatus !== "granted") missing.push("Microphone");
 
   if (missing.length > 0) {
     new Notification({
@@ -693,7 +701,7 @@ async function checkAndRequestPermissions() {
       body: `Grant ${missing.join(" and ")} access in System Settings → Privacy & Security`,
     }).show();
 
-    // For screen recording, open the right System Settings pane since there's no programmatic request
+    // Screen recording can't be granted programmatically — open System Settings as fallback
     if (screenStatus !== "granted") {
       require("electron").shell.openExternal(
         "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
@@ -1548,7 +1556,17 @@ app.whenReady().then(async () => {
       }).show();
     }
 
-    // Request permissions early (mic dialog + screen recording check)
+    // Create session early so captureClient exists for permission requests
+    if (connected) {
+      try {
+        await createSession();
+        console.log("✓ Session pre-created for permission requests");
+      } catch (e) {
+        console.warn("Pre-session creation failed:", e.message);
+      }
+    }
+
+    // Request permissions via captureClient (recorder binary) + check status
     await checkAndRequestPermissions();
 
     // Start HTTP API server for CLI control
