@@ -34,6 +34,8 @@ async def run_capture(token, session_id):
 
         print("\nDiscovering Channels...")
         channels = await client.list_channels()
+        for ch in channels.all():
+            print(f"  - {ch.id} ({ch.type}): {ch.name}")
 
         mic = channels.mics.default
         display = channels.displays.default

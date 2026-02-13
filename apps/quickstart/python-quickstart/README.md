@@ -67,7 +67,7 @@ python client.py
 
 - `client.py` captures media and sends it to VideoDB.
 - VideoDB processes the stream and sends webhooks to your `backend.py`.
-- `backend.py` receives the `capture_session.active` webhook and starts **transcription** and **visual indexing** on the streams.
+- `backend.py` receives the `capture_session.active` webhook and starts **transcription** and **audio indexing** on both audio streams (mic + system audio), and **visual indexing** on the display stream.
 - Real-time results are printed to the console via WebSocket.
 
 ## Expected Output
@@ -84,12 +84,25 @@ Retrieved Session: session_id
   Mics: 1 | System Audio: 1 | Displays: 1
   Indexing system audio: stream_id
   System Audio indexing started (socket: ws_id)
+  Indexing mic: stream_id
+  Mic indexing started (socket: ws_id)
   Indexing display: stream_id
   Visual indexing started (socket: ws_id)
 
-[AudioWatcher] Transcript: [Real-time transcription of audio]
-[AudioWatcher] Audio Index: [Key decisions and action items]
-[VisualWatcher] Visual Index: [Description of screen activity]
+[SystemAudioWatcher] real-time transcription streams live...
+[MicWatcher] real-time transcription streams live...
+
+**************************************************
+[SystemAudioWatcher] Audio Index: Summary of what is being discussed
+**************************************************
+
+**************************************************
+[MicWatcher] Audio Index: Summary of what is being discussed
+**************************************************
+
+**************************************************
+[VisualWatcher] Visual Index: One-sentence description of screen content
+**************************************************
 ```
 
 ### Client Terminal

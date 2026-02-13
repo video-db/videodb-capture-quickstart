@@ -93,19 +93,21 @@ def start_ws_listener(ws_id_queue, name="Listener"):
                     data = msg.get("data", {})
 
                     if channel == "transcript":
-                        if not data.get("is_final"):
-                            continue
                         text = data.get("text", "")
                         if text.strip():
-                            print(f"\n[{name}] Transcript: {text}")
+                            print(f"[{name}] {text}")
                     elif channel == "audio_index":
                         text = data.get("text", "")
                         if text.strip():
-                            print(f"\n[{name}] Audio Index: {text}")
+                            print(f"\n{'*' * 50}")
+                            print(f"[{name}] Audio Index: {text}")
+                            print(f"{'*' * 50}")
                     elif channel in ["scene_index", "visual_index"]:
                         text = data.get("text", "")
                         if text.strip():
-                            print(f"\n[{name}] Visual Index: {text}")
+                            print(f"\n{'*' * 50}")
+                            print(f"[{name}] Visual Index: {text}")
+                            print(f"{'*' * 50}")
 
             except Exception as e:
                 print(f"[{name}] Error: {e}")
@@ -165,7 +167,7 @@ def webhook():
                 print(f"  Indexing system audio: {sys_audio.id}")
 
                 q = queue.Queue()
-                start_ws_listener(q, name="AudioWatcher")
+                start_ws_listener(q, name="SystemAudioWatcher")
                 ws_id = q.get(timeout=10)
 
                 sys_audio.start_transcript(ws_connection_id=ws_id)
@@ -175,6 +177,23 @@ def webhook():
                     batch_config={"type": "time", "value": 30},
                 )
                 print(f"  System Audio indexing started (socket: {ws_id})")
+
+            # Start AI on Mic
+            if mics:
+                mic = mics[0]
+                print(f"  Indexing mic: {mic.id}")
+
+                q = queue.Queue()
+                start_ws_listener(q, name="MicWatcher")
+                ws_id = q.get(timeout=10)
+
+                mic.start_transcript(ws_connection_id=ws_id)
+                mic.index_audio(
+                    prompt="Summarize what is being discussed",
+                    ws_connection_id=ws_id,
+                    batch_config={"type": "time", "value": 30},
+                )
+                print(f"  Mic indexing started (socket: {ws_id})")
 
             # Start AI on Displays
             if displays:
