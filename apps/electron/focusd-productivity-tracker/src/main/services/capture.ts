@@ -220,58 +220,56 @@ export class CaptureService {
 
     // 5. Discover channels
     const channels = await this.client.listChannels();
-    log(TAG, `Discovered ${channels.length} channels`, channels.map((ch: any) => ({
-      id: ch.channelId,
-      type: ch.type,
-      label: ch.label || ch.name,
-    })));
+    const allMics = [...channels.mics];
+    const allDisplays = [...channels.displays];
+    log(TAG, `Discovered channels: ${allMics.length} mic(s), ${allDisplays.length} display(s)`, {
+      mics: allMics.map((ch: any) => ch.id),
+      displays: allDisplays.map((ch: any) => ch.id),
+    });
 
     const captureChannels: ChannelConfig[] = [];
 
     if (settings.recordMic) {
-      const mic = channels.find(
-        (ch: any) => ch.type === 'audio' && ch.channelId?.startsWith('mic:'),
-      );
+      const mic = channels.mics.default;
       if (mic) {
         captureChannels.push({
-          channelId: (mic as any).channelId,
+          channelId: (mic as any).id,
           type: 'audio',
           record: true,
           transcript: true,
         });
-        log(TAG, `Added mic channel: ${(mic as any).channelId}`);
+        log(TAG, `Added mic channel: ${(mic as any).id}`);
       } else {
         warn(TAG, 'No microphone channel found in available channels');
       }
     }
 
     if (settings.recordScreen) {
-      const videoChannels = channels.filter((ch: any) => ch.type === 'video');
-      log(TAG, `Found ${videoChannels.length} video channel(s)`, videoChannels.map((ch: any) => ch.channelId));
+      log(TAG, `Found ${allDisplays.length} video channel(s)`, allDisplays.map((ch: any) => ch.id));
 
       let display: any = null;
-      if (screenId && videoChannels.length > 1) {
+      if (screenId && allDisplays.length > 1) {
         // Try to match the selected screen: Electron display_id "2" → VideoDB "display:2"
-        display = videoChannels.find((ch: any) =>
-          (ch.channelId as string)?.includes(`display:${screenId}`),
+        display = allDisplays.find((ch: any) =>
+          (ch.id as string)?.includes(`display:${screenId}`),
         );
         if (display) {
-          log(TAG, `Matched selected screen ${screenId} → channel ${display.channelId}`);
+          log(TAG, `Matched selected screen ${screenId} → channel ${display.id}`);
         } else {
           warn(TAG, `No channel matched display_id "${screenId}", falling back to first video channel`);
         }
       }
       if (!display) {
-        display = videoChannels[0] || null;
+        display = channels.displays.default || null;
       }
 
       if (display) {
         captureChannels.push({
-          channelId: (display as any).channelId,
+          channelId: (display as any).id,
           type: 'video',
           record: true,
         });
-        log(TAG, `Added display channel: ${(display as any).channelId}`);
+        log(TAG, `Added display channel: ${(display as any).id}`);
       } else {
         warn(TAG, 'No display/video channel found in available channels');
       }
@@ -283,7 +281,7 @@ export class CaptureService {
     }
 
     log(TAG, `Starting capture with ${captureChannels.length} channel(s)...`);
-    await (this.client as any).startCaptureSession({
+    await (this.client as any).startSession({
       sessionId: this.sessionId,
       channels: captureChannels,
     });
@@ -426,7 +424,7 @@ export class CaptureService {
     this.recording = false;
     try {
       if (this.client) {
-        await (this.client as any).stopCaptureSession();
+        await (this.client as any).stopSession();
         await (this.client as any).shutdown();
         log(TAG, 'Capture client shutdown complete');
       }

@@ -599,7 +599,8 @@ export function getAppUsageForDate(date: string): AppUsageStat[] {
       SUM(end_time - start_time) as seconds
      FROM activity_segments
      WHERE start_time >= ? AND end_time <= ? AND is_idle = 0 AND primary_app IS NOT NULL
-     GROUP BY primary_app, app_category
+     GROUP BY LOWER(primary_app)
+     HAVING seconds > 0
      ORDER BY seconds DESC`,
       )
       .all(dayStart, dayEnd) as { app: string; category: string; seconds: number }[]
@@ -618,10 +619,24 @@ export function getProjectsForDate(date: string): ProjectStat[] {
       `SELECT project, SUM(end_time - start_time) as seconds
      FROM activity_segments
      WHERE start_time >= ? AND end_time <= ? AND project IS NOT NULL AND project != '' AND is_idle = 0
-     GROUP BY project
+     GROUP BY LOWER(project)
+     HAVING seconds > 0
      ORDER BY seconds DESC`,
     )
     .all(dayStart, dayEnd) as ProjectStat[];
+}
+
+export function getDistinctAppsForDate(date: string): string[] {
+  const dayStart = dateToEpoch(date);
+  const dayEnd = dayStart + 86400;
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT primary_app FROM activity_segments
+       WHERE start_time >= ? AND end_time <= ? AND primary_app IS NOT NULL AND primary_app != ''
+       ORDER BY start_time DESC`,
+    )
+    .all(dayStart, dayEnd) as { primary_app: string }[];
+  return rows.map((r) => r.primary_app);
 }
 
 export function getDistinctProjectsForSession(sessionId: string): string[] {

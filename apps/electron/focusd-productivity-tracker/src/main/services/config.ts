@@ -13,6 +13,7 @@ export interface FocusdConfig {
   llm: {
     model: string;
     max_tokens: {
+      segment_classification: number;
       micro_summary: number;
       session_summary: number;
       daily_summary: number;
@@ -33,6 +34,7 @@ export interface FocusdConfig {
   prompts: {
     visual_indexing: string;
     audio_indexing: string;
+    segment_classification: { system: string; user: string };
     micro_summary: { system: string; user: string };
     session_summary: { system: string; user: string };
     daily_summary: { system: string; user: string };
@@ -79,7 +81,7 @@ export function render(
 
 // Convenience: get a rendered prompt pair (system + user) for a given key.
 export function getPrompt(
-  key: 'micro_summary' | 'session_summary' | 'daily_summary' | 'deep_dive',
+  key: 'segment_classification' | 'micro_summary' | 'session_summary' | 'daily_summary' | 'deep_dive',
   vars: Record<string, string | number>,
 ): { system: string; user: string } {
   const cfg = getConfig();

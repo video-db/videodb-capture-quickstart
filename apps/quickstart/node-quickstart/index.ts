@@ -1,214 +1,72 @@
 import 'dotenv/config';
 import {
   connect,
+  WebSocketChannel,
   type ChannelConfig,
-  type WebSocketMessage,
 } from 'videodb';
 import { CaptureClient } from 'videodb/capture';
 
 const API_KEY = process.env.VIDEODB_API_KEY;
 const COLLECTION_ID = process.env.VIDEODB_COLLECTION_ID || 'default';
-const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
 if (!API_KEY) {
   throw new Error('VIDEODB_API_KEY is required. Set it in your .env file.');
 }
 
-if (!WEBHOOK_URL) {
-  console.warn('\x1b[33m⚠ WEBHOOK_URL not set. Alerts will not be created.\x1b[0m');
-}
-
-const timestamp = () => new Date().toISOString().split('T')[1].split('.')[0];
-const log = (prefix: string, msg: string, data?: unknown) => {
-  const ts = `\x1b[90m[${timestamp()}]\x1b[0m`;
-  if (data) {
-    console.log(`${ts} ${prefix} ${msg}`, data);
-  } else {
-    console.log(`${ts} ${prefix} ${msg}`);
-  }
-};
-
-const info = (msg: string, data?: unknown) => log('\x1b[36mℹ\x1b[0m', msg, data);
-const success = (msg: string, data?: unknown) => log('\x1b[32m✓\x1b[0m', msg, data);
-const warn = (msg: string, data?: unknown) => log('\x1b[33m⚠\x1b[0m', msg, data);
-const error = (msg: string, data?: unknown) => log('\x1b[31m✗\x1b[0m', msg, data);
-
-const eventColors: Record<string, string> = {
-  transcript: '\x1b[35m',
-  scene_index: '\x1b[34m',
-  spoken_index: '\x1b[33m',
-  capture_session: '\x1b[32m',
-  alert: '\x1b[31m',
-  default: '\x1b[37m',
-};
-
-const appIcons: Record<string, string> = {
-  vscode: '💻',
-  'visual studio': '💻',
-  intellij: '💻',
-  terminal: '🖥️',
-  iterm: '🖥️',
-  chrome: '🌐',
-  firefox: '🌐',
-  safari: '🌐',
-  browser: '🌐',
-  slack: '💬',
-  discord: '💬',
-  default: '🎬',
-};
-
-function getAppIcon(text: string): string {
-  const lower = text.toLowerCase();
-  for (const [app, icon] of Object.entries(appIcons)) {
-    if (lower.includes(app)) return icon;
-  }
-  return appIcons.default;
-}
-
-function formatEvent(msg: WebSocketMessage): string {
-  const channel = (msg.channel || msg.type || msg.event_type || 'event') as string;
-  const color = eventColors[channel] || eventColors.default;
-  const reset = '\x1b[0m';
-  
-  let output = `${color}[${channel.toUpperCase()}]${reset}`;
-  
-  if (channel === 'transcript' || msg.text) {
-    const text = msg.text || (msg.data as Record<string, unknown>)?.text;
-    const isFinal = msg.is_final ?? msg.isFinal ?? (msg.data as Record<string, unknown>)?.is_final;
-    output += ` ${isFinal ? '📝' : '🎤'} "${text}"`;
-  } else if (channel === 'scene_index') {
-    const data = msg.data as Record<string, unknown>;
-    const desc = data?.text as string;
-    const icon = getAppIcon(desc || '');
-    output += ` ${icon} ${desc}`;
-    
-    const summary = msg.summary || (msg.data as Record<string, unknown>)?.summary;
-    if (summary) {
-      output += `\n       └─ 📋 Summary: ${summary}`;
-    }
-  } else if (channel === 'spoken_index') {
-    const summary = msg.summary || (msg.data as Record<string, unknown>)?.summary;
-    output += ` 💬 ${summary}`;
-  } else if (channel === 'alert') {
-    const label = (msg.label || (msg.data as Record<string, unknown>)?.label) as string;
-    const eventName = (msg.event_name || (msg.data as Record<string, unknown>)?.event_name) as string;
-    
-    if (eventName?.includes('ide') || label?.toLowerCase().includes('vscode')) {
-      output += ` 💻 IDE Detected: ${label}`;
-    } else if (eventName?.includes('terminal') || label?.toLowerCase().includes('terminal')) {
-      output += ` 🖥️ Terminal Detected: ${label}`;
-    } else if (eventName?.includes('browser') || label?.toLowerCase().includes('browser')) {
-      output += ` 🌐 Browser Detected: ${label}`;
-    } else {
-      output += ` 🚨 Alert: ${label}`;
-    }
-  } else {
-    const { connection_id, ...rest } = msg;
-    output += ` ${JSON.stringify(rest)}`;
-  }
-  
-  return output;
-}
-
 async function main() {
-  console.log('\n\x1b[1m╔════════════════════════════════════════════════════════════╗');
-  console.log('║   VideoDB CaptureSession Live Demo                         ║');
-  console.log('║   Press Ctrl+C to stop                                     ║');
-  console.log('╚════════════════════════════════════════════════════════════╝\x1b[0m\n');
+  console.log('============================================================');
+  console.log('VideoDB Capture - Node.js Quickstart');
+  console.log('============================================================\n');
 
-  info('Connecting to VideoDB...');
+  // --- Connect ---
+  console.log('Connecting to VideoDB...');
   const conn = connect({ apiKey: API_KEY });
-  
-  const usage = await conn.checkUsage();
-  const userId = (usage.userId as string) || 'demo-user';
-  success(`Connected as user: ${userId}`);
-
   const coll = await conn.getCollection(COLLECTION_ID);
-  success(`Using collection: ${coll.id}`);
+  console.log(`Using collection: ${coll.id}`);
 
-  info('Connecting WebSocket for real-time events...');
-
+  // --- WebSocket ---
+  console.log('Connecting WebSocket...');
   const ws = await conn.connectWebsocket(COLLECTION_ID);
   await ws.connect();
-  success(`WebSocket connected: ${ws.connectionId}`);
+  // Multiple AI pipelines share this WebSocket, so raise the listener limit
+  (ws as any).setMaxListeners?.(20);
+  console.log(`WebSocket connected: ${ws.connectionId}`);
 
-
-  info('Creating capture session...');
+  // --- Session ---
+  console.log('Creating capture session...');
   const session = await coll.createCaptureSession({
-    endUserId: userId,
-    ...(WEBHOOK_URL && { callbackUrl: WEBHOOK_URL }),
+    endUserId: 'quickstart-user',
     wsConnectionId: ws.connectionId,
-    metadata: { demo: true, startedAt: Date.now() },
+    metadata: { app: 'node-quickstart' },
   });
-  success(`Capture session created: ${session.id}`);
+  console.log(`Session created: ${session.id}`);
 
   const token = await conn.generateClientToken(3600);
-  success('Client token generated (1 hour expiry)');
+  console.log('Client token generated');
 
-  info('Initializing CaptureClient...');
+  // --- Capture Client ---
   const client = new CaptureClient({ sessionToken: token });
 
-  client.on('recording:started', (payload) => {
-    success('Recording started', payload);
-  });
+  console.log('\nRequesting permissions...');
+  await client.requestPermission('microphone');
+  await client.requestPermission('screen-capture');
 
-  client.on('recording:stopped', (payload) => {
-    warn('Recording stopped', payload);
-  });
-
-  client.on('recording:error', (payload) => {
-    error('Recording error', payload);
-  });
-
-  client.on('transcript', (payload) => {
-    const { text, isFinal } = payload as { text: string; isFinal: boolean };
-    log(isFinal ? '\x1b[35m📝\x1b[0m' : '\x1b[35m🎤\x1b[0m', `Transcript: "${text}"`);
-  });
-
-  client.on('upload:progress', (payload) => {
-    const { channelId, progress } = payload as { channelId: string; progress: number };
-    info(`Upload progress [${channelId}]: ${Math.round(progress * 100)}%`);
-  });
-
-  client.on('upload:complete', (payload) => {
-    success('Upload complete', payload);
-  });
-
-  info('Requesting permissions...');
-  try {
-    const micPerm = await client.requestPermission('microphone');
-    success(`Microphone permission: ${micPerm}`);
-  } catch (e) {
-    warn('Microphone permission request failed (binary may not be running)');
+  console.log('Discovering channels...');
+  const channels = await client.listChannels();
+  for (const ch of channels.all()) {
+    console.log(`  - ${ch.id} (${ch.type}): ${ch.name}`);
   }
 
-  try {
-    const screenPerm = await client.requestPermission('screen-capture');
-    success(`Screen capture permission: ${screenPerm}`);
-  } catch (e) {
-    warn('Screen capture permission request failed');
-  }
+  const micChannel = channels.mics.default;
+  const displayChannel = channels.displays.default;
+  const systemAudioChannel = channels.systemAudio.default;
 
-  info('Listing available channels...');
-  let channels: Array<{ channelId: string; type: 'audio' | 'video'; name: string }> = [];
-  try {
-    channels = await client.listChannels();
-    console.log('\n  Available channels:');
-    for (const ch of channels) {
-      console.log(`    • ${ch.channelId} (${ch.type}): ${ch.name}`);
-    }
-    console.log('');
-  } catch (e) {
-    warn('Could not list channels (binary may not be running)');
-  }
-
+  // record: true saves the recording to VideoDB after capture stops.
+  // Without this, streams are processed in real-time but not persisted.
   const captureChannels: ChannelConfig[] = [];
-  const micChannel = channels.find(ch => ch.type === 'audio' && ch.channelId.startsWith('mic:'));
-  const displayChannel = channels.find(ch => ch.type === 'video');
-
   if (micChannel) {
     captureChannels.push({
-      channelId: micChannel.channelId,
+      channelId: micChannel.id,
       type: 'audio',
       record: true,
       transcript: true,
@@ -216,178 +74,168 @@ async function main() {
   }
   if (displayChannel) {
     captureChannels.push({
-      channelId: displayChannel.channelId,
+      channelId: displayChannel.id,
       type: 'video',
       record: true,
     });
   }
-
-  if (captureChannels.length > 0) {
-    info(`Starting capture with channels: ${captureChannels.map(c => c.channelId).join(', ')}`);
-    try {
-      const capturePromise = client.startCaptureSession({
-        sessionId: session.id,
-        channels: captureChannels,
-      });
-
-      await capturePromise;
-      success('Capture session started!');
-
-      info('Waiting for session to become active...');
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      await session.refresh();
-      success(`Session status: ${session.status}`);
-      success(`RTStreams available: ${session.rtstreams.length}`);
-
-      const audioStream = session.rtstreams.find(rts => 
-        rts.mediaTypes?.includes('audio') || rts.channelId?.includes('mic')
-      );
-      const videoStream = session.rtstreams.find(rts => 
-        rts.mediaTypes?.includes('video') || rts.channelId?.includes('display')
-      );
-
-      if (audioStream) {
-        info(`Setting up index spoken words for audio stream: ${audioStream.id}`);
-        try {
-          const spokenIndex = await audioStream.indexAudio({
-            batchConfig: { type: 'word', value: 15 },
-            prompt: 'Summarize what is being said, identify key topics and action items',
-            socketId: ws.connectionId,
-          });
-          if (spokenIndex) {
-            success(`Spoken word indexing started: ${spokenIndex.rtstreamIndexId}`);
-          }
-        } catch (e) {
-          error('Failed to start transcript', e);
-        }
-      }
-
-      if (videoStream) {
-        info(`Setting up visual indexing for video stream: ${videoStream.id}`);
-        try {
-          const sceneIndex = await videoStream.indexVisuals({
-            batchConfig: { type: 'time', value: 3, frameCount: 3 },
-            prompt: `Analyze the screen and provide a summary. Always identify:
-- Application in use (VSCode, Terminal, Browser, Slack, etc.)
-- What the user is doing (coding, browsing, chatting, etc.)
-- Key visible content (file names, URLs, code snippets, etc.)
-Format: "[APP_NAME] - [ACTION] - [DETAILS]"`,
-            socketId: ws.connectionId,
-          });
-          if (sceneIndex) {
-            success(`Visual indexing started: ${sceneIndex.rtstreamIndexId}`);
-
-            if (WEBHOOK_URL) {
-              try {
-                const ideEventId = await conn.createEvent(
-                  'Detect when VSCode, Visual Studio, IntelliJ, or any code editor/IDE is visible on screen',
-                  'ide_detected'
-                );
-                if (ideEventId) {
-                  await sceneIndex.createAlert(ideEventId, WEBHOOK_URL);
-                  success(`Alert created for IDE detection (eventId: ${ideEventId})`);
-                } else {
-                  warn('Failed to create IDE event - no eventId returned');
-                }
-
-                const terminalEventId = await conn.createEvent(
-                  'Detect when Terminal, iTerm, Command Prompt, or any shell/console is visible',
-                  'terminal_detected'
-                );
-                if (terminalEventId) {
-                  await sceneIndex.createAlert(terminalEventId, WEBHOOK_URL);
-                  success(`Alert created for Terminal detection (eventId: ${terminalEventId})`);
-                } else {
-                  warn('Failed to create Terminal event - no eventId returned');
-                }
-
-                const browserEventId = await conn.createEvent(
-                  'Detect when Chrome, Firefox, Safari, or any web browser is visible',
-                  'browser_detected'
-                );
-                if (browserEventId) {
-                  await sceneIndex.createAlert(browserEventId, WEBHOOK_URL);
-                  success(`Alert created for Browser detection (eventId: ${browserEventId})`);
-                } else {
-                  warn('Failed to create Browser event - no eventId returned');
-                }
-              } catch (e) {
-                warn('Could not create detection events', e);
-              }
-            }
-          }
-        } catch (e) {
-          error('Failed to start visual indexing', e);
-        }
-      }
-
-    } catch (e) {
-      error('Failed to start capture', e);
-      if (e instanceof Error && e.message.includes('timed out')) {
-        error('Capture session timed out. Exiting.');
-        process.exit(1);
-      }
-    }
-  } else {
-    warn('No channels available - running in WebSocket-only mode');
-    warn('Make sure the native binary is running for full functionality');
+  if (systemAudioChannel) {
+    captureChannels.push({
+      channelId: systemAudioChannel.id,
+      type: 'audio',
+      record: true,
+      transcript: true,
+    });
   }
+
+  if (captureChannels.length === 0) {
+    console.log('No channels found.');
+    return;
+  }
+
+  console.log(
+    `\nStarting capture with ${captureChannels.length} channel(s):`
+  );
+  for (const ch of captureChannels) {
+    console.log(`  - ${ch.channelId}`);
+  }
+
+  await client.startSession({
+    sessionId: session.id,
+    channels: captureChannels,
+  });
+  console.log('Capture started!');
+
+  // --- AI Pipelines ---
+  console.log('\nWaiting for session to become active...');
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  await session.refresh();
+  console.log(`Session status: ${session.status}`);
+
+  const audioStreams = session.rtstreams.filter((rts) =>
+    rts.mediaTypes?.includes('audio')
+  );
+  const videoStream = session.rtstreams.find((rts) =>
+    rts.mediaTypes?.includes('video')
+  );
+
+  // Start AI on audio streams (mic + system audio)
+  for (const stream of audioStreams) {
+    console.log(`  Starting audio indexing on: ${stream.id}`);
+    try {
+      await stream.indexAudio({
+        prompt: 'Summarize what is being discussed',
+        batchConfig: { type: 'time', value: 30 },
+        socketId: ws.connectionId,
+      });
+      console.log(`  Audio indexing started: ${stream.id}`);
+    } catch (e) {
+      console.error(`  Failed to start audio indexing on ${stream.id}:`, e);
+    }
+  }
+
+  // Start AI on video stream
+  if (videoStream) {
+    console.log(`  Starting visual indexing on: ${videoStream.id}`);
+    try {
+      await videoStream.indexVisuals({
+        prompt: 'In one sentence, describe what is on screen',
+        batchConfig: { type: 'time', value: 3, frameCount: 3 },
+        socketId: ws.connectionId,
+      });
+      console.log(`  Visual indexing started: ${videoStream.id}`);
+    } catch (e) {
+      console.error('  Failed to start visual indexing:', e);
+    }
+  }
+
+  // --- Real-time Events ---
+  console.log('\n============================================================');
+  console.log('Recording... Press Enter to stop (or Ctrl+C to force quit)');
+  console.log('============================================================\n');
 
   let isShuttingDown = false;
   const shutdown = async () => {
     if (isShuttingDown) return;
     isShuttingDown = true;
-    
-    console.log('\n');
-    info('Shutting down...');
-    
-    try {
-      await client.stopCaptureSession();
-      success('Capture stopped');
-    } catch (e) {}
 
+    console.log('\nStopping capture...');
+    try {
+      await client.stopSession();
+    } catch {}
     try {
       await client.shutdown();
-      success('Client shutdown');
-    } catch (e) {}
-
+    } catch {}
     try {
       await ws.close();
-      success('WebSocket closed');
-    } catch (e) {}
+    } catch {}
 
-    console.log('\n\x1b[1m✨ Demo complete!\x1b[0m\n');
+    console.log('Capture stopped.');
+    console.log('\n============================================================');
+    console.log("What's next?");
+    console.log(
+      '  - Try different indexAudio() prompts for richer insights'
+    );
+    console.log('  - Build alerts with rtstream.createAlert()');
+    console.log('  - Explore the full SDK: https://docs.videodb.io');
+    console.log('============================================================');
     process.exit(0);
   };
+
+  // Listen for Enter key to stop gracefully
+  process.stdin.setRawMode?.(false);
+  process.stdin.resume();
+  process.stdin.once('data', () => shutdown());
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  console.log('\n\x1b[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
-  console.log('\x1b[1m  📡 Streaming real-time events (Ctrl+C to stop)\x1b[0m');
-  console.log('\x1b[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\n');
-
   try {
     for await (const msg of ws.receive()) {
       if (isShuttingDown) break;
-      
-      const formatted = formatEvent(msg);
-      console.log(`\x1b[90m[WEBSOCKETSTREAM:${timestamp()}]\x1b[0m ${formatted}`);
+
+      const channel = (msg.channel || msg.type || 'event') as string;
+      const data = (msg.data || {}) as Record<string, unknown>;
+      // Extract short source label from rtstream_name (e.g., "Capture mic - cap-83e6" → "mic")
+      const rawSource = ((msg as Record<string, unknown>).rtstream_name || '') as string;
+      const sourceMatch = rawSource.match(/Capture (\w+)/);
+      const label = sourceMatch ? `:${sourceMatch[1]}` : (rawSource ? `:${rawSource}` : '');
+
+      if (channel === WebSocketChannel.transcript) {
+        const text = data.text || msg.text;
+        if (text) console.log(`[Transcript${label}] ${text}`);
+      } else if (channel === WebSocketChannel.spokenIndex || channel === 'audio_index') {
+        const text = (data.text || msg.text) as string;
+        if (text?.trim()) {
+          console.log(`\n${'*'.repeat(50)}`);
+          console.log(`[Audio Index${label}] ${text}`);
+          console.log('*'.repeat(50));
+        }
+      } else if (channel === WebSocketChannel.sceneIndex || channel === 'visual_index') {
+        const text = (data.text || msg.text) as string;
+        if (text?.trim()) {
+          console.log(`\n${'*'.repeat(50)}`);
+          console.log(`[Visual Index${label}] ${text}`);
+          console.log('*'.repeat(50));
+        }
+      } else if (channel === WebSocketChannel.captureSession) {
+        const status = data.status as string;
+        console.log(`\n[Session] ${status}`);
+      }
     }
   } catch (e) {
     if (!isShuttingDown) {
-      error('WebSocket stream error', e);
+      console.error('WebSocket error:', e);
     }
   }
 
   if (!isShuttingDown) {
-    warn('WebSocket connection closed unexpectedly');
+    console.log('WebSocket connection closed unexpectedly');
     await shutdown();
   }
 }
 
-main().catch(e => {
-  error('Fatal error', e);
+main().catch((e) => {
+  console.error('Fatal error:', e);
   process.exit(1);
 });

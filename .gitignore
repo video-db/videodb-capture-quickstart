@@ -54,3 +54,6 @@ ENV/
 .idea/
 *.log
 videodb-recorder
+
+.claude
+auth_config.json

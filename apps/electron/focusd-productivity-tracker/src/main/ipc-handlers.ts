@@ -264,13 +264,13 @@ export function registerIPCHandlers(): void {
     try {
       // 1. Stop idle detection and flush remaining events into segments FIRST
       stopIdleDetection();
-      flushToSegments();
+      await flushToSegments();
 
       // 2. Now generate final summaries (activeSessionId is still set)
       await stopPeriodicSummaries();
 
       // 3. Stop ingestion and capture
-      stopIngestion();
+      await stopIngestion();
       await capture.stopCapture();
 
       const sessionId = capture.getSessionId();
@@ -362,7 +362,11 @@ export function registerIPCHandlers(): void {
     const date = db.todayDateString();
     const totalTracked = db.getTotalTrackedForDate(date);
     const totalIdle = Math.min(db.getIdleSecsForDate(date), totalTracked);
-    const { productive, distracted } = db.getProductiveSecsForDate(date);
+    const raw = db.getProductiveSecsForDate(date);
+    // Cap productive + distracted to never exceed tracked time
+    const activeTime = Math.max(0, totalTracked - totalIdle);
+    const productive = Math.min(raw.productive, activeTime);
+    const distracted = Math.min(raw.distracted, Math.max(0, activeTime - productive));
     const segments = db.getSegmentsForDate(date);
     const appUsage = db.getAppUsageForDate(date);
     const topProjects = db.getProjectsForDate(date);
