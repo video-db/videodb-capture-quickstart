@@ -2,8 +2,9 @@
 RTStream Quickstart - Monitor an AI Agent via RTSP Streams
 
 Connects to two RTSP streams (audio + screen) from a Matrix Architect agent,
-starts real-time transcription, audio/visual indexing, and alerts,
+starts real-time transcription, audio/visual indexing, and alerts (e.g. browser open),
 then prints all events via a single WebSocket (differentiated by channel).
+Automatically stops after 5 minutes.
 
 No Capture SDK or desktop client needed - just RTSP URLs.
 
@@ -32,11 +33,13 @@ DEFAULT_AUDIO_INDEX_PROMPT = "Summarize the audio content. Extract any speech ve
 DEFAULT_VISUAL_INDEX_PROMPT = "In one sentence, describe the active application and what the agent is doing on screen. Note the current time if a clock is visible."
 
 DEFAULT_ALERT_PROMPT = (
-    "The time visible on screen shows a minute value that is an even number "
-    "(a multiple of 2). For example 10:00, 10:02, 10:04, 14:38, 9:52 would match, "
-    "but 10:01, 10:03, 14:37 would not."
+    "A web browser window (such as Chrome, Firefox, Safari, or Edge) is open "
+    "and visible on screen. The browser could be showing any webpage, search "
+    "results, documentation, or any other web content."
 )
-DEFAULT_ALERT_LABEL = "even-minute"
+DEFAULT_ALERT_LABEL = "browser-open"
+
+HARD_STOP_SECONDS = 5 * 60  # 5 minutes
 
 if not VIDEO_DB_API_KEY:
     raise ValueError("VIDEO_DB_API_KEY not set in .env")
@@ -219,17 +222,17 @@ async def main():
 
     audio_stream.index_audio(
         prompt=audio_index_prompt,
-        batch_config={"type": "time", "value": 30},
+        batch_config={"type": "time", "value": 5},
         ws_connection_id=ws.connection_id,
     )
-    step("Audio indexing started", "30s window")
+    step("Audio indexing started", "5s window")
 
     visual_index = screen_stream.index_visuals(
         prompt=visual_index_prompt,
-        batch_config={"type": "time", "value": 30, "frame_count": 5},
+        batch_config={"type": "time", "value": 5, "frame_count": 1},
         ws_connection_id=ws.connection_id,
     )
-    step("Visual indexing started", "30s window, 5 frames")
+    step("Visual indexing started", "5s window, 1 frames")
 
     # Alert: reuse existing event or create a new one
     existing_events = conn.list_events()
@@ -252,7 +255,7 @@ async def main():
 
     # --- Live events ---
     header("Live Events")
-    print(f"  {DIM}Listening for real-time events... (Ctrl+C to stop){RESET}\n")
+    print(f"  {DIM}Listening for real-time events... (Ctrl+C or auto-stop in {HARD_STOP_SECONDS // 60} min){RESET}\n")
 
     # Graceful shutdown
     stop_event = asyncio.Event()
@@ -267,11 +270,15 @@ async def main():
 
     ws_task = asyncio.create_task(listen_ws(ws))
     stop_task = asyncio.create_task(stop_event.wait())
+    timeout_task = asyncio.create_task(asyncio.sleep(HARD_STOP_SECONDS))
 
     done, pending = await asyncio.wait(
-        [ws_task, stop_task],
+        [ws_task, stop_task, timeout_task],
         return_when=asyncio.FIRST_COMPLETED,
     )
+
+    if timeout_task in done:
+        print(f"\n  {YELLOW}Hard stop: {HARD_STOP_SECONDS // 60} minute limit reached.{RESET}")
 
     for task in pending:
         task.cancel()
