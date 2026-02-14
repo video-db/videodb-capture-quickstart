@@ -14,7 +14,7 @@
 
 ---
 
-## What it does
+## Overview
 
 Focusd records your screen and system audio using VideoDB's real-time capture SDK. It uses vision models to understand what's on your screen every few seconds — which app you're in, what you're reading, what you're coding — and builds a layered summarization pipeline on top of that.
 
@@ -25,6 +25,42 @@ At any point during the day you can:
 - Drill down into any time range for a **detailed breakdown** with app usage, project time, and context
 - View a **dashboard** with tracked time, productive time, top applications, and projects
 - Generate an **end-of-day recap** with highlights and actionable improvement suggestions
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Capture["Capture Layer"]
+        REC["VideoDB Capture SDK"]
+        MIC["Mic / System Audio"]
+        SCR["Screen"]
+    end
+
+    subgraph Pipeline["Summarization Pipeline"]
+        L0["L0: Raw Events<br/>screen index every ~3s"]
+        L1["L1: Activity Segments<br/>grouped by time window"]
+        L2["L2: Micro-Summaries<br/>1-sentence per segment"]
+        L3["L3: Session Summaries<br/>projects, apps, productivity"]
+        L4["L4: Daily Summary<br/>headline, highlights, suggestions"]
+    end
+
+    subgraph UI["Electron UI"]
+        TL[Timeline View]
+        DD[Drill Down]
+        DASH[Dashboard]
+        RPT[Reports]
+    end
+
+    subgraph Store["Local Storage"]
+        DB[(SQLite)]
+    end
+
+    REC --> MIC & SCR
+    MIC & SCR -->|media streams| L0
+    L0 --> L1 --> L2 --> L3 --> L4
+    L2 & L3 & L4 --> DB
+    DB --> TL & DD & DASH & RPT
+```
 
 ## How summarization works
 
@@ -38,8 +74,58 @@ Raw screen captures flow through a 5-layer pipeline:
 
 All LLM prompts, pipeline timings, and indexing configs live in a single [`config.yaml`](config.yaml) file.
 
-## Requirements
-- A [VideoDB](https://videodb.io) API key
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Live Activity Timeline** | Real-time feed of what you're doing, updated every few seconds |
+| **Session Summaries** | AI-generated overviews of each work session with app stats and project breakdown |
+| **Drill Down** | Select any time range for a detailed breakdown with context |
+| **Dashboard** | Tracked time, productive time, top applications, and project distribution |
+| **Daily Recap** | End-of-day report with headline, highlights, and improvement suggestions |
+| **History View** | Browse past days with full summaries and activity data |
+| **Configurable Pipeline** | Tune segment timing, summary intervals, and idle thresholds from Settings |
+| **Screen Selector** | Choose which display to capture |
+
+## Tech Stack
+
+| Technology | Purpose |
+|------------|---------|
+| Electron | Desktop application shell |
+| React | UI framework |
+| TypeScript | Type safety |
+| Tailwind CSS | Styling |
+| Recharts | Dashboard charts and visualizations |
+| SQLite (better-sqlite3) | Local data storage |
+| VideoDB SDK | Screen capture, audio capture, and real-time indexing |
+| OpenAI | LLM for summarization pipeline |
+
+## Prerequisites
+
+- **Operating System**: macOS 12+ (Apple Silicon or Intel)
+- **Node.js**: 18 or higher
+- **npm**: 10 or higher
+- **VideoDB API Key**: Sign up at [console.videodb.io](https://console.videodb.io)
+
+## Getting Started
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/video-db/videodb-capture-quickstart.git
+cd videodb-capture-quickstart/apps/electron/focusd-productivity-tracker
+
+# 2. Install dependencies
+npm install
+
+# 3. Copy env template and add your VideoDB API key
+cp .env.sample .env
+
+# 4. Run in dev mode
+npm run dev
+
+# 5. Build macOS DMG
+npm run package:mac
+```
 
 ## Configuration
 
@@ -52,23 +138,74 @@ All prompts, timing intervals, and indexing parameters are in [`config.yaml`](co
 
 These can also be adjusted from the **Settings** page in the app.
 
-## Local development
+## Project Structure
 
-```bash
-# Install dependencies
-npm install
-
-# Copy env template and add your VideoDB API key
-cp .env.sample .env
-
-# Run in dev mode
-npm run dev
-
-# Build macOS DMG
-npm run package:mac
+```
+src/
+├── main/                         # Electron Main Process
+│   ├── services/
+│   │   ├── app-tracker.ts        # Application tracking
+│   │   ├── capture.ts            # VideoDB capture integration
+│   │   ├── config.ts             # Config loading (config.yaml)
+│   │   ├── database.ts           # SQLite database layer
+│   │   ├── event-ingestion.ts    # Raw event processing (L0)
+│   │   ├── idle-detector.ts      # Idle detection
+│   │   ├── keystore.ts           # Secure key storage (macOS Keychain)
+│   │   ├── logger.ts             # Logging
+│   │   └── summarizer.ts         # Summarization pipeline (L1-L4)
+│   └── index.ts                  # Main process entry
+├── preload/                      # Preload scripts (IPC bridge)
+├── renderer/                     # React Frontend
+│   └── src/
+│       ├── components/
+│       │   ├── Timeline.tsx      # Live activity timeline
+│       │   ├── TodayView.tsx     # Today's dashboard
+│       │   ├── DrillDown.tsx     # Time range drill down
+│       │   ├── HistoryView.tsx   # Past day browser
+│       │   ├── ReportsView.tsx   # Reports and daily recap
+│       │   ├── AppUsageChart.tsx # App usage visualization
+│       │   ├── SummaryCard.tsx   # Summary display card
+│       │   ├── SettingsView.tsx  # Settings editor
+│       │   ├── ScreenSelector.tsx# Display source picker
+│       │   ├── Onboarding.tsx    # First-run setup
+│       │   ├── Sidebar.tsx       # Navigation sidebar
+│       │   └── Layout.tsx        # App layout
+│       └── hooks/
+│           └── useIPC.ts         # IPC communication hook
+└── shared/                       # Shared types
 ```
 
-## Data & privacy
+## Permissions (macOS)
+
+The app requires the following system permissions:
+- **Screen Recording** - For screen capture
+- **System Audio Recording** - For capturing system audio (optional)
+
+Grant these in **System Settings > Privacy & Security > Screen Recording**.
+
+## Troubleshooting
+
+### Recording not starting
+- Verify VideoDB API key is configured in Settings
+- Check Node.js version: `node --version` (requires 18+)
+- Grant screen recording permissions in System Settings
+
+### No summaries appearing
+- Wait for the first segment flush interval (default: 5 minutes)
+- Check that screen indexing is active in the timeline
+- Verify your API key has sufficient credits
+
+### App won't launch
+- Check for native module issues: `npm run rebuild`
+- Delete app data and restart: `rm -rf ~/Library/Application\ Support/VideoDB\ Focusd/`
+- Review logs in `~/Library/Application Support/VideoDB Focusd/logs/`
+
+### High CPU usage
+- Increase `pipeline.segment_flush_mins` in Settings to reduce indexing frequency
+- Disable system audio recording if not needed
+- Close other screen recording apps that may conflict
+
+## Data & Privacy
 
 Screen captures are processed through VideoDB's API, and summaries are stored in a local SQLite database at `~/Library/Application Support/VideoDB Focusd/`. Your API key is encrypted using macOS Keychain via Electron's `safeStorage`.
 
@@ -77,3 +214,7 @@ To reset all data:
 ```
 rm -rf ~/Library/Application\ Support/VideoDB\ Focusd/
 ```
+
+## License
+
+MIT - See [repository license](https://github.com/video-db/videodb-capture-quickstart/blob/main/LICENSE)
