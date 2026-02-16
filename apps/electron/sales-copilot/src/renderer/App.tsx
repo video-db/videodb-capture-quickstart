@@ -8,12 +8,14 @@ import { TranscriptionPanel } from './components/transcription/TranscriptionPane
 import { HistoryView } from './components/history/HistoryView';
 import { useConfigStore } from './stores/config.store';
 import { useSession } from './hooks/useSession';
+import { useSessionStore } from './stores/session.store';
 import { usePermissions } from './hooks/usePermissions';
 import { useGlobalRecorderEvents } from './hooks/useGlobalRecorderEvents';
 import { useCopilot } from './hooks/useCopilot';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
+import { ErrorToast } from './components/ui/error-toast';
 import { AlertCircle, Shield, BookOpen, X, Mic, Users, Gauge, Loader2 } from 'lucide-react';
 import {
   CueCardOverlay,
@@ -22,10 +24,12 @@ import {
   SentimentIndicator,
   CallSummaryView,
 } from './components/copilot';
+import { MCPResultsOverlay } from './components/mcp';
 import { useCopilotStore } from './stores/copilot.store';
 import { CueCardEditor } from './components/settings/CueCardEditor';
 import { PlaybookEditor } from './components/settings/PlaybookEditor';
 import { PromptsEditor } from './components/settings/PromptsEditor';
+import { MCPServersPanel } from './components/settings/MCPServersPanel';
 import { cn } from './lib/utils';
 
 type Tab = 'recording' | 'history' | 'settings';
@@ -304,6 +308,9 @@ function RecordingView() {
         <div className="w-96 flex flex-col gap-4 shrink-0 overflow-hidden">
           {/* Scrollable container for right panel */}
           <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            {/* MCP Results Overlay - Shows tool call results */}
+            <MCPResultsOverlay />
+
             {/* Cue Card Overlay */}
             <CueCardOverlay />
 
@@ -340,7 +347,7 @@ function RecordingView() {
 
 function SettingsView() {
   const [activeSettingsTab, setActiveSettingsTab] = useState<
-    'account' | 'cueCards' | 'playbooks' | 'prompts'
+    'account' | 'cueCards' | 'playbooks' | 'prompts' | 'mcpServers'
   >('account');
   const configStore = useConfigStore();
 
@@ -349,6 +356,7 @@ function SettingsView() {
     { id: 'cueCards' as const, label: 'Cue Cards' },
     { id: 'playbooks' as const, label: 'Playbooks' },
     { id: 'prompts' as const, label: 'AI Settings' },
+    { id: 'mcpServers' as const, label: 'MCP Servers' },
   ];
 
   return (
@@ -409,6 +417,7 @@ function SettingsView() {
         {activeSettingsTab === 'cueCards' && <CueCardEditor />}
         {activeSettingsTab === 'playbooks' && <PlaybookEditor />}
         {activeSettingsTab === 'prompts' && <PromptsEditor />}
+        {activeSettingsTab === 'mcpServers' && <MCPServersPanel />}
       </div>
     </div>
   );
@@ -418,12 +427,18 @@ export function App() {
   const [activeTab, setActiveTab] = useState<Tab>('recording');
 
   const configStore = useConfigStore();
+  const sessionStore = useSessionStore();
   const { allGranted, loading: permissionsLoading } = usePermissions();
 
   // Global listener for recorder events - persists during navigation
   useGlobalRecorderEvents();
 
   const isAuthenticated = configStore.isAuthenticated();
+
+  // Handle clearing session errors
+  const handleDismissError = () => {
+    sessionStore.setError(null);
+  };
 
   const getTitle = () => {
     switch (activeTab) {
@@ -484,6 +499,11 @@ export function App() {
 
         {/* Global Copilot Components */}
         <NudgeToast position="bottom" />
+        <ErrorToast
+          message={sessionStore.error}
+          onDismiss={handleDismissError}
+          position="bottom"
+        />
       </div>
     );
   }
@@ -505,6 +525,11 @@ export function App() {
 
       {/* Global Copilot Components */}
       {isAuthenticated && <NudgeToast position="bottom" />}
+      <ErrorToast
+        message={sessionStore.error}
+        onDismiss={handleDismissError}
+        position="bottom"
+      />
     </div>
   );
 }

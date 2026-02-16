@@ -2,7 +2,7 @@ import React from 'react';
 import { Video, History, Settings, LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useConfigStore } from '../../stores/config.store';
-import { electronAPI } from '../../api/ipc';
+import { getElectronAPI } from '../../api/ipc';
 import { cn } from '../../lib/utils';
 
 interface SidebarProps {
@@ -14,8 +14,9 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const configStore = useConfigStore();
 
   const handleLogout = async () => {
-    if (electronAPI) {
-      await electronAPI.app.logout();
+    const api = getElectronAPI();
+    if (api) {
+      await api.app.logout();
     }
     configStore.clearAuth();
   };

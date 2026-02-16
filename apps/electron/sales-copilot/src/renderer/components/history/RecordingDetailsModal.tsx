@@ -28,7 +28,7 @@ import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import type { Recording } from '../../../shared/schemas/recording.schema';
 import { formatDuration, formatRelativeTime, unwrapMarkdownCodeBlock, cn } from '../../lib/utils';
-import { electronAPI } from '../../api/ipc';
+import { getElectronAPI } from '../../api/ipc';
 
 interface RecordingDetailsModalProps {
   recording: Recording | null;
@@ -81,14 +81,16 @@ export function RecordingDetailsModal({
   if (!recording) return null;
 
   const handlePlay = async () => {
-    if (recording.playerUrl && electronAPI) {
-      await electronAPI.app.openPlayerWindow(recording.playerUrl);
+    const api = getElectronAPI();
+    if (recording.playerUrl && api) {
+      await api.app.openPlayerWindow(recording.playerUrl);
     }
   };
 
   const handleOpenExternal = async () => {
-    if (recording.playerUrl && electronAPI) {
-      await electronAPI.app.openExternalLink(recording.playerUrl);
+    const api = getElectronAPI();
+    if (recording.playerUrl && api) {
+      await api.app.openExternalLink(recording.playerUrl);
     }
   };
 
@@ -308,12 +310,13 @@ export function RecordingDetailsModal({
               </CollapsibleSection>
             )}
 
-            {/* Call Summary (Real-time) */}
+            {/* Call Summary (Real-time) - Primary section */}
             {callSummary && (
               <CollapsibleSection
                 title="Call Summary"
                 icon={<MessageSquare className="h-4 w-4" />}
-                defaultOpen={false}
+                defaultOpen={true}
+                badge={`${callSummary.bullets?.length || 0} points`}
               >
                 <div className="space-y-3 pt-2">
                   {/* Risk Flags */}

@@ -175,20 +175,20 @@ export function TopStatusBar() {
         <span className="text-sm font-medium">{getSentimentLabel()}</span>
       </div>
 
-      <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
-
-      {/* Playbook Progress */}
       {playbook && (
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-slate-500" />
-          <span className="text-sm font-medium">{playbook.playbookName}</span>
-          <Badge
-            variant={playbook.coveragePercentage >= 70 ? 'default' : 'outline'}
-            className="ml-1"
-          >
-            {playbook.covered}/{playbook.total}
-          </Badge>
-        </div>
+        <>
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-700" />
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-slate-500" />
+            <span className="text-sm font-medium">{playbook.playbookName}</span>
+            <Badge
+              variant={playbook.coveragePercentage >= 70 ? 'default' : 'outline'}
+              className="ml-1"
+            >
+              {playbook.covered}/{playbook.total}
+            </Badge>
+          </div>
+        </>
       )}
 
       {/* Health Score */}
