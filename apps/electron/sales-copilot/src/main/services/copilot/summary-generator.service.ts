@@ -83,22 +83,56 @@ export class SummaryGeneratorService {
 
     log.info({ segmentCount: finalSegments.length }, 'Generating call summary');
 
-    // Run extractions in parallel for speed
-    const [
-      bullets,
-      painAndGoals,
-      objections,
-      commitments,
-      nextSteps,
-      decisions,
-    ] = await Promise.all([
-      this.extractBullets(finalSegments),
-      this.extractPainAndGoals(finalSegments),
-      this.extractObjections(finalSegments),
-      this.extractCommitments(finalSegments),
-      this.extractNextSteps(finalSegments),
-      this.extractDecisions(finalSegments),
-    ]);
+    // Run extractions in parallel for speed with error handling
+    let bullets: string[] = [];
+    let painAndGoals: { pain: string[]; goals: string[] } = { pain: [], goals: [] };
+    let objections: Objection[] = [];
+    let commitments: Commitment[] = [];
+    let nextSteps: ActionItem[] = [];
+    let decisions: string[] = [];
+
+    try {
+      const results = await Promise.allSettled([
+        this.extractBullets(finalSegments),
+        this.extractPainAndGoals(finalSegments),
+        this.extractObjections(finalSegments),
+        this.extractCommitments(finalSegments),
+        this.extractNextSteps(finalSegments),
+        this.extractDecisions(finalSegments),
+      ]);
+
+      // Process results, using defaults for any that failed
+      bullets = results[0].status === 'fulfilled' ? results[0].value : [];
+      painAndGoals = results[1].status === 'fulfilled' ? results[1].value : { pain: [], goals: [] };
+      objections = results[2].status === 'fulfilled' ? results[2].value : [];
+      commitments = results[3].status === 'fulfilled' ? results[3].value : [];
+      nextSteps = results[4].status === 'fulfilled' ? results[4].value : [];
+      decisions = results[5].status === 'fulfilled' ? results[5].value : [];
+
+      // Log any failures
+      const failures = results.filter(r => r.status === 'rejected');
+      if (failures.length > 0) {
+        log.warn({
+          failedCount: failures.length,
+          errors: failures.map((f, i) => ({
+            index: i,
+            reason: f.status === 'rejected' ? f.reason?.message || f.reason : 'unknown'
+          }))
+        }, 'Some summary extractions failed');
+      }
+
+      log.info({
+        bullets: bullets.length,
+        painPoints: painAndGoals.pain.length,
+        goals: painAndGoals.goals.length,
+        objections: objections.length,
+        commitments: commitments.length,
+        nextSteps: nextSteps.length,
+        decisions: decisions.length,
+      }, 'Summary extraction complete');
+    } catch (error) {
+      log.error({ error }, 'Summary generation failed completely');
+    }
 
     // Extract risk flags from various sources
     const riskFlags = this.identifyRisks(objections, painAndGoals.pain, commitments);
