@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { electronAPI } from '../api/ipc';
+import { getElectronAPI } from '../api/ipc';
 import type { PermissionStatus } from '../../shared/types/ipc.types';
 
 export function usePermissions() {
@@ -11,13 +11,14 @@ export function usePermissions() {
   const [loading, setLoading] = useState(true);
 
   const checkPermissions = useCallback(async () => {
-    if (!electronAPI) {
+    const api = getElectronAPI();
+    if (!api) {
       setLoading(false);
       return;
     }
 
     try {
-      const permStatus = await electronAPI.permissions.getStatus();
+      const permStatus = await api.permissions.getStatus();
       setStatus(permStatus);
     } catch (error) {
       console.error('Failed to check permissions:', error);
@@ -31,9 +32,10 @@ export function usePermissions() {
   }, [checkPermissions]);
 
   const requestMicPermission = useCallback(async () => {
-    if (!electronAPI) return false;
+    const api = getElectronAPI();
+    if (!api) return false;
 
-    const granted = await electronAPI.permissions.requestMicPermission();
+    const granted = await api.permissions.requestMicPermission();
     if (granted) {
       setStatus((prev) => ({ ...prev, microphone: true }));
     }
@@ -41,16 +43,18 @@ export function usePermissions() {
   }, []);
 
   const requestScreenPermission = useCallback(async () => {
-    if (!electronAPI) return false;
+    const api = getElectronAPI();
+    if (!api) return false;
 
-    const granted = await electronAPI.permissions.requestScreenPermission();
+    const granted = await api.permissions.requestScreenPermission();
     await checkPermissions(); // Re-check since user needs to grant manually
     return granted;
   }, [checkPermissions]);
 
   const openSettings = useCallback(async (pane: string) => {
-    if (!electronAPI) return;
-    await electronAPI.permissions.openSystemSettings(pane);
+    const api = getElectronAPI();
+    if (!api) return;
+    await api.permissions.openSystemSettings(pane);
   }, []);
 
   const allGranted = status.microphone && status.screen;

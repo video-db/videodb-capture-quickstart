@@ -235,3 +235,57 @@ export type NewNudgeHistory = typeof nudgesHistory.$inferInsert;
 
 export type CopilotSetting = typeof copilotSettings.$inferSelect;
 export type NewCopilotSetting = typeof copilotSettings.$inferInsert;
+
+// MCP (Model Context Protocol) Tables
+
+/**
+ * MCP Servers
+ * Configuration for connected MCP servers (CRMs, docs, calendars, search tools)
+ */
+export const mcpServers = sqliteTable('mcp_servers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  transport: text('transport', { enum: ['stdio', 'http'] }).notNull(),
+  command: text('command'),           // For stdio transport
+  args: text('args'),                 // JSON array of arguments
+  env: text('env'),                   // JSON object, encrypted (environment variables)
+  url: text('url'),                   // For HTTP/SSE transport
+  headers: text('headers'),           // JSON object, encrypted (HTTP headers)
+  templateId: text('template_id'),    // Reference to server template
+  isEnabled: integer('is_enabled', { mode: 'boolean' }).default(true),
+  autoConnect: integer('auto_connect', { mode: 'boolean' }).default(false),
+  connectionStatus: text('connection_status', {
+    enum: ['disconnected', 'connecting', 'connected', 'error']
+  }).default('disconnected'),
+  lastError: text('last_error'),
+  lastConnectedAt: text('last_connected_at'),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});
+
+/**
+ * MCP Tool Calls
+ * History of tool invocations during calls
+ */
+export const mcpToolCalls = sqliteTable('mcp_tool_calls', {
+  id: text('id').primaryKey(),
+  serverId: text('server_id').notNull(),
+  recordingId: integer('recording_id'),
+  toolName: text('tool_name').notNull(),
+  toolInput: text('tool_input'),      // JSON input parameters
+  toolOutput: text('tool_output'),    // JSON output result
+  status: text('status', { enum: ['pending', 'success', 'error'] }).notNull(),
+  errorMessage: text('error_message'),
+  durationMs: integer('duration_ms'),
+  triggerType: text('trigger_type', { enum: ['intent', 'manual', 'test'] }).notNull(),
+  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+}, (table) => ({
+  serverIdx: index('idx_mcp_tool_calls_server').on(table.serverId),
+  recordingIdx: index('idx_mcp_tool_calls_recording').on(table.recordingId),
+}));
+
+export type MCPServer = typeof mcpServers.$inferSelect;
+export type NewMCPServer = typeof mcpServers.$inferInsert;
+
+export type MCPToolCall = typeof mcpToolCalls.$inferSelect;
+export type NewMCPToolCall = typeof mcpToolCalls.$inferInsert;

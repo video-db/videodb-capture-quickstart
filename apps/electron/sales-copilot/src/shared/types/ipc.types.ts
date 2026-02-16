@@ -217,6 +217,30 @@ export interface IpcApi {
     onCallEnded: (callback: (data: { summary: CopilotCallSummary; playbook?: CopilotPlaybookSnapshot; metrics: CopilotMetrics; duration: number }) => void) => () => void;
     onError: (callback: (data: { error: string; context?: string }) => void) => () => void;
   };
+  mcp: {
+    getServers: () => Promise<{ success: boolean; servers?: any[]; connectionStates?: Record<string, any>; error?: string }>;
+    getServer: (serverId: string) => Promise<{ success: boolean; server?: any; error?: string }>;
+    createServer: (request: any) => Promise<{ success: boolean; server?: any; error?: string }>;
+    updateServer: (serverId: string, request: any) => Promise<{ success: boolean; server?: any; error?: string }>;
+    deleteServer: (serverId: string) => Promise<{ success: boolean; error?: string }>;
+    connect: (serverId: string) => Promise<{ success: boolean; tools?: any[]; error?: string }>;
+    disconnect: (serverId: string) => Promise<{ success: boolean; error?: string }>;
+    testConnection: (serverId: string) => Promise<{ success: boolean; result?: any; error?: string }>;
+    getTools: () => Promise<{ success: boolean; tools?: any[]; error?: string }>;
+    executeTool: (serverId: string, toolName: string, input?: Record<string, unknown>) => Promise<{ success: boolean; result?: any; error?: string }>;
+    getTemplates: () => Promise<{ success: boolean; templates?: any[]; error?: string }>;
+    getTemplate: (templateId: string) => Promise<{ success: boolean; template?: any; error?: string }>;
+    getToolCalls: (recordingId: number) => Promise<{ success: boolean; calls?: any[]; error?: string }>;
+    dismissResult: (resultId: string) => Promise<{ success: boolean; error?: string }>;
+    pinResult: (resultId: string) => Promise<{ success: boolean; error?: string }>;
+  };
+  mcpOn: {
+    onResult: (callback: (data: { result: any }) => void) => () => void;
+    onError: (callback: (data: { serverId: string; toolName: string; error: string }) => void) => () => void;
+    onServerConnected: (callback: (data: { serverId: string; tools: any[] }) => void) => () => void;
+    onServerDisconnected: (callback: (data: { serverId: string; reason: string }) => void) => () => void;
+    onServerError: (callback: (data: { serverId: string; error: string }) => void) => () => void;
+  };
 }
 
 export type IpcChannel =

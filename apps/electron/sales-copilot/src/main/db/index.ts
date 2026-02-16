@@ -163,6 +163,40 @@ export function initDatabase(): ReturnType<typeof drizzle<typeof schema>> {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- MCP Tables
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      transport TEXT NOT NULL CHECK(transport IN ('stdio', 'http')),
+      command TEXT,
+      args TEXT,
+      env TEXT,
+      url TEXT,
+      headers TEXT,
+      template_id TEXT,
+      is_enabled INTEGER NOT NULL DEFAULT 1,
+      auto_connect INTEGER NOT NULL DEFAULT 0,
+      connection_status TEXT NOT NULL DEFAULT 'disconnected' CHECK(connection_status IN ('disconnected', 'connecting', 'connected', 'error')),
+      last_error TEXT,
+      last_connected_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS mcp_tool_calls (
+      id TEXT PRIMARY KEY,
+      server_id TEXT NOT NULL,
+      recording_id INTEGER,
+      tool_name TEXT NOT NULL,
+      tool_input TEXT,
+      tool_output TEXT,
+      status TEXT NOT NULL CHECK(status IN ('pending', 'success', 'error')),
+      error_message TEXT,
+      duration_ms INTEGER,
+      trigger_type TEXT NOT NULL CHECK(trigger_type IN ('intent', 'manual', 'test')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     -- Indexes
     CREATE INDEX IF NOT EXISTS idx_users_access_token ON users(access_token);
     CREATE INDEX IF NOT EXISTS idx_recordings_session_id ON recordings(session_id);
@@ -175,6 +209,8 @@ export function initDatabase(): ReturnType<typeof drizzle<typeof schema>> {
     CREATE INDEX IF NOT EXISTS idx_playbook_sessions_recording ON playbook_sessions(recording_id);
     CREATE INDEX IF NOT EXISTS idx_call_metrics_history_recording ON call_metrics_history(recording_id);
     CREATE INDEX IF NOT EXISTS idx_nudges_history_recording ON nudges_history(recording_id);
+    CREATE INDEX IF NOT EXISTS idx_mcp_tool_calls_server ON mcp_tool_calls(server_id);
+    CREATE INDEX IF NOT EXISTS idx_mcp_tool_calls_recording ON mcp_tool_calls(recording_id);
   `);
 
   ensureRecordingColumns();
@@ -1084,6 +1120,139 @@ Return JSON array: [{"action": "string", "owner": "me"|"them"|"both", "priority"
   }
 
   logger.info('Seeded default copilot settings');
+}
+
+// MCP Server CRUD Operations
+
+export function createMCPServer(data: schema.NewMCPServer) {
+  const database = getDatabase();
+  return database.insert(schema.mcpServers).values(data).returning().get();
+}
+
+export function getMCPServerById(id: string) {
+  const database = getDatabase();
+  return database
+    .select()
+    .from(schema.mcpServers)
+    .where(eq(schema.mcpServers.id, id))
+    .get();
+}
+
+export function getAllMCPServers() {
+  const database = getDatabase();
+  return database
+    .select()
+    .from(schema.mcpServers)
+    .orderBy(schema.mcpServers.createdAt)
+    .all();
+}
+
+export function getEnabledMCPServers() {
+  const database = getDatabase();
+  return database
+    .select()
+    .from(schema.mcpServers)
+    .where(eq(schema.mcpServers.isEnabled, true))
+    .all();
+}
+
+export function getAutoConnectMCPServers() {
+  const database = getDatabase();
+  return database
+    .select()
+    .from(schema.mcpServers)
+    .where(and(
+      eq(schema.mcpServers.isEnabled, true),
+      eq(schema.mcpServers.autoConnect, true)
+    ))
+    .all();
+}
+
+export function updateMCPServer(id: string, data: Partial<schema.MCPServer>) {
+  const database = getDatabase();
+  return database
+    .update(schema.mcpServers)
+    .set({ ...data, updatedAt: new Date().toISOString() })
+    .where(eq(schema.mcpServers.id, id))
+    .returning()
+    .get();
+}
+
+export function updateMCPServerStatus(
+  id: string,
+  status: 'disconnected' | 'connecting' | 'connected' | 'error',
+  error?: string
+) {
+  const database = getDatabase();
+  const updates: Partial<schema.MCPServer> = {
+    connectionStatus: status,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (status === 'connected') {
+    updates.lastConnectedAt = new Date().toISOString();
+    updates.lastError = null;
+  } else if (status === 'error' && error) {
+    updates.lastError = error;
+  }
+
+  return database
+    .update(schema.mcpServers)
+    .set(updates)
+    .where(eq(schema.mcpServers.id, id))
+    .returning()
+    .get();
+}
+
+export function deleteMCPServer(id: string) {
+  const database = getDatabase();
+  return database.delete(schema.mcpServers).where(eq(schema.mcpServers.id, id));
+}
+
+// MCP Tool Call CRUD Operations
+
+export function createMCPToolCall(data: schema.NewMCPToolCall) {
+  const database = getDatabase();
+  return database.insert(schema.mcpToolCalls).values(data).returning().get();
+}
+
+export function getMCPToolCallById(id: string) {
+  const database = getDatabase();
+  return database
+    .select()
+    .from(schema.mcpToolCalls)
+    .where(eq(schema.mcpToolCalls.id, id))
+    .get();
+}
+
+export function getMCPToolCallsByServer(serverId: string) {
+  const database = getDatabase();
+  return database
+    .select()
+    .from(schema.mcpToolCalls)
+    .where(eq(schema.mcpToolCalls.serverId, serverId))
+    .orderBy(desc(schema.mcpToolCalls.createdAt))
+    .all();
+}
+
+export function getMCPToolCallsByRecording(recordingId: number) {
+  const database = getDatabase();
+  return database
+    .select()
+    .from(schema.mcpToolCalls)
+    .where(eq(schema.mcpToolCalls.recordingId, recordingId))
+    .orderBy(schema.mcpToolCalls.createdAt)
+    .all();
+}
+
+export function updateMCPToolCall(id: string, data: Partial<schema.MCPToolCall>) {
+  const database = getDatabase();
+  return database
+    .update(schema.mcpToolCalls)
+    .set(data)
+    .where(eq(schema.mcpToolCalls.id, id))
+    .returning()
+    .get();
 }
 
 export { schema };
