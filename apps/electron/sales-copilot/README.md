@@ -19,6 +19,8 @@ A desktop application for recording sales calls with real-time transcription and
 - **Nudges** - Timely reminders based on conversation context (e.g., "You haven't asked about budget")
 - **Call Summary** - AI-generated summary with key points, action items, objections, and risks
 - **Bookmarking** - Mark important moments during calls for easy reference
+- **MCP Agent Support** - Connect MCP servers and let the app auto-trigger tool calls from conversation context
+- **MCP Result Cards** - Inline tool outputs (including links) shown live during calls
 
 ### Technical
 - **Modern UI** - Built with React, Tailwind CSS, and shadcn/ui
@@ -66,6 +68,35 @@ A desktop application for recording sales calls with real-time transcription and
 
 4. **Register with your VideoDB API key** when the app opens
 
+## MCP Server Setup
+
+### Where to Configure
+
+Open **Settings → MCP Servers** in the app.
+
+### How to Add a Server
+
+1. Click **Add Server**
+2. Choose transport:
+   - **stdio** (local command-based MCP server)
+   - **http** (remote MCP endpoint)
+3. Fill required fields (command/args/env or URL/headers)
+4. Save and click **Connect**
+
+### Triggering Behavior
+
+- MCP agent runs automatically during active calls when trigger keywords are detected in transcript context.
+- You can customize trigger keywords from the MCP settings panel.
+- Tool outputs appear in the **MCP Results** panel during the call.
+
+### Capabilities
+
+- Multiple MCP server connections
+- Aggregated tool discovery across connected servers
+- Auto-triggered tool execution from call context
+- Live MCP result rendering (cards, markdown, links, structured fields)
+- Result actions like pin/dismiss while in-call
+
 ## Development
 
 ### Available Scripts
@@ -103,6 +134,7 @@ src/
 │       │   ├── summary-generator.service.ts
 │       │   └── transcript-buffer.service.ts
 │       ├── llm.service.ts
+│       ├── mcp/            # MCP orchestration and tool execution services
 │       ├── tunnel.service.ts
 │       └── videodb.service.ts
 ├── preload/                # Preload scripts (IPC bridge)
@@ -113,13 +145,14 @@ src/
 │   │   ├── copilot/        # Copilot UI components
 │   │   ├── history/        # Recording history views
 │   │   ├── layout/         # App layout (sidebar, titlebar)
+│   │   ├── mcp/            # MCP results/status components
 │   │   ├── recording/      # Recording controls
 │   │   ├── settings/       # Settings editors
 │   │   ├── transcription/  # Live transcription panel
 │   │   └── ui/             # shadcn/ui components
 │   ├── hooks/              # Custom React hooks
 │   ├── lib/                # Utilities
-│   └── stores/             # Zustand state stores
+│   └── stores/             # Zustand state stores (session, copilot, mcp)
 └── shared/                 # Shared types & schemas
     ├── schemas/            # Zod validation schemas
     └── types/              # TypeScript types
@@ -164,6 +197,8 @@ Type-safe IPC between renderer and main process:
 - `window.electronAPI.capture.*` - Recording controls
 - `window.electronAPI.permissions.*` - Permission management
 - `window.electronAPI.copilot.*` - Copilot operations
+- `window.electronAPI.mcp.*` - MCP server and tool operations
+- `window.electronAPI.mcpOn.*` - MCP event subscriptions
 - `window.electronAPI.app.*` - App utilities
 
 ### AI Copilot Pipeline
