@@ -64,6 +64,18 @@ import {
   type CallSummary,
 } from './summary-generator.service';
 
+// MCP Services
+import {
+  getConnectionOrchestrator,
+  getIntentDetector,
+  getResultHandler,
+  getToolAggregator,
+  getMCPAgent,
+  resetMCPAgent,
+} from '../mcp';
+import { createMCPToolCall, updateMCPToolCall } from '../../db';
+import type { MCPDisplayResult, MCPIntentDetection } from '../../../shared/types/mcp.types';
+
 const log = logger.child({ module: 'sales-copilot' });
 
 // Types
@@ -79,6 +91,9 @@ export interface CopilotConfig {
   useLLMForDetection: boolean;
   metricsUpdateInterval: number; // ms
   compressionInterval: number; // ms
+  // MCP Configuration
+  enableMCP: boolean;
+  mcpAutoTrigger: boolean;
 }
 
 export interface CopilotEvents {
@@ -96,6 +111,9 @@ export interface CopilotEvents {
     duration: number;
   };
   'error': { error: string; context?: string };
+  // MCP Events
+  'mcp-result': { result: import('../../../shared/types/mcp.types').MCPDisplayResult };
+  'mcp-error': { serverId: string; toolName: string; error: string };
 }
 
 export interface CallState {
@@ -134,6 +152,9 @@ export class SalesCopilotService extends EventEmitter {
     useLLMForDetection: false, // Start with fast detection
     metricsUpdateInterval: 10000, // 10 seconds
     compressionInterval: 300000, // 5 minutes
+    // MCP defaults
+    enableMCP: true,
+    mcpAutoTrigger: true,
   };
 
   constructor(config?: Partial<CopilotConfig>) {
@@ -189,6 +210,9 @@ export class SalesCopilotService extends EventEmitter {
     if (this.config.enablePlaybook) {
       await this.playbookTracker.initialize(this.config.playbookId || null, recordingId);
     }
+
+    // Reset MCP Agent conversation for the new call
+    getMCPAgent().resetConversation();
 
     // Start periodic metrics updates
     if (this.config.enableMetrics) {
@@ -295,6 +319,22 @@ export class SalesCopilotService extends EventEmitter {
       this.processSentiment();
     }
 
+    // MCP intent detection (for both channels - sales rep may ask for info too)
+    if (this.config.enableMCP && this.config.mcpAutoTrigger) {
+      log.debug({
+        text: segment.text.slice(0, 50),
+        channel: segment.channel,
+        enableMCP: this.config.enableMCP,
+        mcpAutoTrigger: this.config.mcpAutoTrigger,
+      }, 'MCP: Checking segment for intent detection');
+      promises.push(this.processMCPIntents(segment, context));
+    } else {
+      log.debug({
+        enableMCP: this.config.enableMCP,
+        mcpAutoTrigger: this.config.mcpAutoTrigger,
+      }, 'MCP: Skipped - MCP not enabled or auto-trigger disabled');
+    }
+
     await Promise.all(promises);
 
     // Mark segment as processed
@@ -349,6 +389,145 @@ export class SalesCopilotService extends EventEmitter {
     const sentiment = this.sentimentAnalyzer.getSentimentTrend(recentSegments);
 
     this.emit('sentiment-update', { sentiment });
+  }
+
+  /**
+   * Process MCP intents - use agentic loop to detect and execute tool calls
+   */
+  private async processMCPIntents(segment: TranscriptSegmentData, context: string): Promise<void> {
+    if (!this.callState) {
+      log.debug('MCP: No active call state, skipping');
+      return;
+    }
+
+    const mcpAgent = getMCPAgent();
+    const toolAggregator = getToolAggregator();
+
+    // Check if any tools are available
+    const availableTools = toolAggregator.getAllTools();
+    log.info({
+      toolCount: availableTools.length,
+      tools: availableTools.map(t => `${t.serverId}:${t.name}`),
+    }, 'MCP: Available tools');
+
+    if (availableTools.length === 0) {
+      log.warn('MCP: No tools available, skipping intent detection');
+      return;
+    }
+
+    // Quick check if we should even trigger the agent
+    const shouldTrigger = mcpAgent.shouldTrigger(segment, context);
+    log.info({
+      shouldTrigger,
+      text: segment.text.slice(0, 100),
+      channel: segment.channel,
+    }, 'MCP: Trigger check result');
+
+    if (!shouldTrigger) {
+      return;
+    }
+
+    // Get last 5 segments for context
+    const allSegments = this.transcriptBuffer.getFinalSegments(this.callState.sessionId);
+    const recentSegments = allSegments.slice(-5);
+
+    log.info({
+      text: segment.text.slice(0, 100),
+      fullText: segment.text,
+      toolCount: availableTools.length,
+      toolNames: availableTools.map(t => `${t.serverId}:${t.name}`),
+      recentSegmentCount: recentSegments.length,
+      channel: segment.channel,
+    }, 'MCP Agent triggered, starting agentic loop');
+
+    // Create a record for this agent run
+    const agentRunId = `mcp-agent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    log.debug({
+      agentRunId,
+      recentSegments: recentSegments.map(s => ({ channel: s.channel, text: s.text.slice(0, 50) })),
+    }, 'MCP Agent: Recent segments being sent');
+
+    try {
+      // Run the agentic loop with recent segments
+      const startTime = Date.now();
+      const result = await mcpAgent.run(recentSegments, availableTools);
+      const elapsedMs = Date.now() - startTime;
+
+      log.info({
+        agentRunId,
+        elapsedMs,
+        success: result.success,
+        hasResponse: !!result.response,
+        responsePreview: result.response?.slice(0, 200),
+        toolsCalledCount: result.toolsCalled.length,
+        toolsCalledNames: result.toolsCalled.map(tc => tc.toolName),
+        error: result.error,
+      }, 'MCP Agent run completed');
+
+      // Log all tool calls to database
+      for (const toolCall of result.toolsCalled) {
+        const toolCallId = `${agentRunId}-${toolCall.toolName}`;
+        try {
+          createMCPToolCall({
+            id: toolCallId,
+            serverId: toolCall.serverId,
+            recordingId: this.callState.recordingId,
+            toolName: toolCall.toolName,
+            toolInput: JSON.stringify(toolCall.input),
+            toolOutput: toolCall.output ? JSON.stringify(toolCall.output) : undefined,
+            status: toolCall.success ? 'success' : 'error',
+            errorMessage: !toolCall.success ? 'Tool execution failed' : undefined,
+            triggerType: 'intent',
+          });
+        } catch (dbError) {
+          log.error({ error: dbError }, 'Failed to create MCP tool call record');
+        }
+      }
+
+      // If we got a response, create a display result
+      if (result.success && (result.response || result.toolsCalled.length > 0)) {
+        // Build a display result with the agent's response
+        const displayResult: MCPDisplayResult = {
+          id: agentRunId,
+          toolCallId: agentRunId,
+          serverId: result.toolsCalled[0]?.serverId || 'agent',
+          toolName: result.toolsCalled.map(tc => tc.toolName).join(', ') || 'MCP Agent',
+          serverName: 'MCP Agent',
+          displayType: 'cue-card',
+          title: result.toolsCalled.length > 0
+            ? `${result.toolsCalled[0].toolName} Results`
+            : 'MCP Agent Response',
+          content: {
+            // Only use markdown since response may contain links/formatting
+            markdown: result.response || 'Tool executed successfully',
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Emit result event
+        this.emit('mcp-result', { result: displayResult });
+
+        log.info({
+          agentRunId,
+          toolsCalledCount: result.toolsCalled.length,
+          hasResponse: !!result.response,
+        }, 'MCP Agent completed, result emitted');
+      } else if (result.error) {
+        log.warn({ agentRunId, error: result.error }, 'MCP Agent completed with error');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Emit error event
+      this.emit('mcp-error', {
+        serverId: 'agent',
+        toolName: 'MCP Agent',
+        error: errorMessage,
+      });
+
+      log.error({ error: errorMessage, agentRunId }, 'MCP Agent failed');
+    }
   }
 
   /**
@@ -493,9 +672,20 @@ export class SalesCopilotService extends EventEmitter {
     // Generate summary
     let summary: CallSummary;
     try {
+      log.info({ recordingId, segmentCount: segments.length }, 'Starting summary generation');
+      const summaryStartTime = Date.now();
       summary = await this.summaryGenerator.generate(segments);
+      const summaryElapsed = Date.now() - summaryStartTime;
+      log.info({
+        recordingId,
+        elapsedMs: summaryElapsed,
+        bullets: summary.bullets.length,
+        objections: summary.objections.length,
+        nextSteps: summary.nextSteps.length,
+      }, 'Summary generation completed');
     } catch (error) {
-      log.error({ error }, 'Failed to generate summary');
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      log.error({ err: error, errorMessage: errMsg, recordingId }, 'Failed to generate summary');
       summary = {
         bullets: [],
         customerPain: [],
@@ -504,24 +694,28 @@ export class SalesCopilotService extends EventEmitter {
         commitments: [],
         nextSteps: [],
         keyDecisions: [],
-        riskFlags: ['Summary generation failed'],
+        riskFlags: ['Summary generation failed: ' + errMsg],
         generatedAt: Date.now(),
       };
     }
 
     // Save to database
     try {
+      log.info({ recordingId, hasSummary: summary.bullets.length > 0 }, 'Saving call data to database');
       updateRecording(recordingId, {
         callSummary: JSON.stringify(summary),
         playbookSnapshot: playbookSnapshot ? JSON.stringify(playbookSnapshot) : undefined,
         metricsSnapshot: JSON.stringify(metrics),
         duration: Math.round(duration),
       });
+      log.info({ recordingId }, 'Call data saved to database');
     } catch (error) {
-      log.error({ error }, 'Failed to save call data');
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      log.error({ err: error, errorMessage: errMsg, recordingId }, 'Failed to save call data');
     }
 
     // Emit end event
+    log.info({ recordingId, hasSummary: summary.bullets.length > 0 }, 'Emitting call-ended event');
     this.emit('call-ended', {
       summary,
       playbook: playbookSnapshot || undefined,

@@ -1,7 +1,0 @@
-node_modules/
-dist/
-.env
-*.log
-
-# Include .env.example (override parent ignore)
-!.env.example

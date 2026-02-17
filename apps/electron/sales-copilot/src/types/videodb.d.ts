@@ -53,7 +53,13 @@ declare module 'videodb' {
     ): Promise<string | Record<string, unknown>>;
   }
 
-  export type RTStreamCategory = 'mics' | 'displays' | 'system_audio' | 'cameras';
+  export type RTStreamCategory =
+    | 'mic'
+    | 'mics'
+    | 'screen'
+    | 'displays'
+    | 'system_audio'
+    | 'cameras';
 
   export class RTStream {
     id: string;
@@ -137,6 +143,30 @@ declare module 'videodb/capture' {
     isDefault?: boolean;
   }
 
+  export class Channel {
+    id: string;
+    name: string;
+    type: 'audio' | 'video';
+    store: boolean;
+    pause(): Promise<void>;
+    resume(): Promise<void>;
+    toDict(): { channel_id: string; type: string; name: string; record: boolean; store: boolean };
+  }
+
+  export class AudioChannel extends Channel {}
+  export class VideoChannel extends Channel {}
+
+  export class ChannelList<T extends Channel> extends Array<T> {
+    get default(): T | undefined;
+  }
+
+  export class Channels {
+    mics: ChannelList<AudioChannel>;
+    displays: ChannelList<VideoChannel>;
+    systemAudio: ChannelList<AudioChannel>;
+    all(): Channel[];
+  }
+
   export interface RecordingChannelConfig {
     channelId: string;
     type: 'audio' | 'video';
@@ -146,7 +176,7 @@ declare module 'videodb/capture' {
     wsConnectionId?: string;
   }
 
-  export interface StartCaptureSessionClientConfig {
+  export interface StartSessionConfig {
     sessionId: string;
     channels: RecordingChannelConfig[];
   }
@@ -158,9 +188,9 @@ declare module 'videodb/capture' {
   export class CaptureClient {
     constructor(options: CaptureClientOptions);
     requestPermission(kind: PermissionType): Promise<PermissionStatus>;
-    listChannels(): Promise<BinaryChannel[]>;
-    startCaptureSession(config: StartCaptureSessionClientConfig): Promise<void>;
-    stopCaptureSession(): Promise<void>;
+    listChannels(): Promise<Channels>;
+    startSession(config: StartSessionConfig): Promise<void>;
+    stopSession(): Promise<void>;
     pauseTracks(tracks: TrackType[]): Promise<void>;
     resumeTracks(tracks: TrackType[]): Promise<void>;
     shutdown(): Promise<void>;

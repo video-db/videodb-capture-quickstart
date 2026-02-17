@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import type { Recording } from '../../../shared/schemas/recording.schema';
 import { formatDuration, formatRelativeTime, stripMarkdown } from '../../lib/utils';
-import { electronAPI } from '../../api/ipc';
+import { getElectronAPI } from '../../api/ipc';
 
 interface RecordingCardProps {
   recording: Recording;
@@ -14,8 +14,9 @@ interface RecordingCardProps {
 
 export function RecordingCard({ recording, onViewDetails }: RecordingCardProps) {
   const handlePlay = async () => {
-    if (recording.playerUrl && electronAPI) {
-      await electronAPI.app.openPlayerWindow(recording.playerUrl);
+    const api = getElectronAPI();
+    if (recording.playerUrl && api) {
+      await api.app.openPlayerWindow(recording.playerUrl);
     }
   };
 
@@ -39,7 +40,12 @@ export function RecordingCard({ recording, onViewDetails }: RecordingCardProps) 
     }
   };
 
-  const getInsightsBadge = () => {
+  const getSummaryBadge = () => {
+    // Prioritize call summary over insights
+    if (recording.callSummary?.bullets && recording.callSummary.bullets.length > 0) {
+      return <Badge variant="default">Summary ready</Badge>;
+    }
+
     if (recording.status !== 'available') return null;
 
     switch (recording.insightsStatus) {
@@ -68,7 +74,7 @@ export function RecordingCard({ recording, onViewDetails }: RecordingCardProps) 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
               {getStatusBadge()}
-              {getInsightsBadge()}
+              {getSummaryBadge()}
             </div>
 
             <p className="text-sm font-medium truncate">
@@ -102,10 +108,22 @@ export function RecordingCard({ recording, onViewDetails }: RecordingCardProps) 
           </div>
         </div>
 
-        {/* Insights preview */}
-        {recording.insightsStatus === 'ready' && recording.insights && (
+        {/* Call Summary preview (prioritized) */}
+        {recording.callSummary?.bullets && recording.callSummary.bullets.length > 0 && (
           <div className="mt-3 pt-3 border-t">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Summary</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Call Summary</p>
+            <ul className="text-sm space-y-0.5">
+              {recording.callSummary.bullets.slice(0, 2).map((bullet, i) => (
+                <li key={i} className="line-clamp-1">• {bullet}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Fallback to insights if no call summary */}
+        {!recording.callSummary?.bullets?.length && recording.insightsStatus === 'ready' && recording.insights && (
+          <div className="mt-3 pt-3 border-t">
+            <p className="text-xs font-medium text-muted-foreground mb-1">AI Summary</p>
             <p className="text-sm line-clamp-2">{stripMarkdown(recording.insights)}</p>
           </div>
         )}

@@ -29,17 +29,17 @@ async def main():
 
     audio.index_audio(
         prompt="Summarize what is being said or heard.",
-        batch_config={"type": "time", "value": 30},
+        batch_config={"type": "time", "value": 5},
         ws_connection_id=ws.connection_id,
     )
     print("audio indexing started (30s window)")
 
     screen.index_visuals(
         prompt="In one sentence, describe the active application and what the agent is doing on screen. Note the current time if a clock is visible.",
-        batch_config={"type": "time", "value": 30, "frame_count": 5},
+        batch_config={"type": "time", "value": 5, "frame_count": 1},
         ws_connection_id=ws.connection_id,
     )
-    print("visual indexing started (30s window, 5 frames)")
+    print("visual indexing started (5swindow, 1 frames)")
 
     # Listen for events — Ctrl+C to stop
     print("\nlistening for events...\n")

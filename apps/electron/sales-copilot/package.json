@@ -30,6 +30,7 @@
   "dependencies": {
     "@hono/node-server": "^1.14.1",
     "@hono/trpc-server": "^0.3.4",
+    "@modelcontextprotocol/sdk": "^1.0.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
@@ -44,13 +45,14 @@
     "cloudflared": "^0.7.1",
     "drizzle-orm": "^0.44.1",
     "hono": "^4.7.5",
+    "openai": "^6.19.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
     "uuid": "^11.1.0",
-    "videodb": "github:video-db/videodb-node#release-0.4.0",
+    "videodb": "^0.2.0",
     "zod": "^3.25.4",
     "zustand": "^5.0.4"
   },

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useSessionStore } from '../stores/session.store';
 import { useTranscriptionStore } from '../stores/transcription.store';
 import { useCopilotStore } from '../stores/copilot.store';
-import { electronAPI } from '../api/ipc';
+import { getElectronAPI } from '../api/ipc';
 import type { RecorderEvent, TranscriptEvent } from '../../shared/types/ipc.types';
 
 /**
@@ -28,11 +28,12 @@ export function useGlobalRecorderEvents() {
   }, [transcriptionStore]);
 
   useEffect(() => {
-    if (!electronAPI) return;
+    const api = getElectronAPI();
+    if (!api) return;
 
     console.log('[Global] Setting up recorder event listener');
 
-    const unsubscribe = electronAPI.on.recorderEvent((event: RecorderEvent) => {
+    const unsubscribe = api.on.recorderEvent((event: RecorderEvent) => {
       const session = sessionStoreRef.current;
       const transcription = transcriptionStoreRef.current;
 
@@ -65,11 +66,12 @@ export function useGlobalRecorderEvents() {
             }
 
             // Forward transcript to copilot backend (for final segments only)
-            if (transcript.isFinal && useCopilotStore.getState().isCallActive && electronAPI) {
+            const currentApi = getElectronAPI();
+            if (transcript.isFinal && useCopilotStore.getState().isCallActive && currentApi) {
               // Map source to channel: 'mic' -> 'me', 'system_audio' -> 'them'
               const channel: 'me' | 'them' = transcript.source === 'mic' ? 'me' : 'them';
 
-              electronAPI.copilot.sendTranscript(channel, {
+              currentApi.copilot.sendTranscript(channel, {
                 text: transcript.text,
                 is_final: true,
                 start: transcript.start,

@@ -48,9 +48,10 @@ async function startRealtimeTranscriptionWithWs(
     }
     const conn = connect(connectOptions);
 
-    // Poll for capture session to have RTStreams
     let mics: RTStream[] = [];
     let systemAudios: RTStream[] = [];
+    const needsMic = Boolean(micWsConnectionId);
+    const needsSystemAudio = Boolean(sysAudioWsConnectionId);
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
@@ -73,20 +74,54 @@ async function startRealtimeTranscriptionWithWs(
         // Refresh to get RTStreams
         await session.refresh();
 
-        // Try to get RTStreams by category (like Python's get_rtstream)
-        mics = session.getRTStream('mics');
+        mics = (session.rtstreams || []).filter((stream) => {
+          const name = (stream.name || '').toLowerCase();
+          const channelId = (stream.channelId || '').toLowerCase();
+          return name === 'mic' || channelId.startsWith('mic');
+        });
         systemAudios = session.getRTStream('system_audio');
 
-        if (mics.length > 0 || systemAudios.length > 0) {
+        if (mics.length === 0) {
+          mics = session.getRTStream('mics');
+        }
+
+        if (systemAudios.length === 0) {
+          systemAudios = (session.rtstreams || []).filter((stream) => {
+            const name = (stream.name || '').toLowerCase();
+            const channelId = (stream.channelId || '').toLowerCase();
+            return (
+              name === 'system_audio' ||
+              name === 'system-audio' ||
+              channelId.startsWith('system_audio') ||
+              channelId.startsWith('system-audio')
+            );
+          });
+        }
+
+        const hasRequiredMic = !needsMic || mics.length > 0;
+        const hasRequiredSystemAudio = !needsSystemAudio || systemAudios.length > 0;
+
+        if (hasRequiredMic && hasRequiredSystemAudio) {
           logger.info(
-            { mics: mics.length, systemAudios: systemAudios.length },
-            '[Transcript] Found RTStreams'
+            {
+              mics: mics.length,
+              systemAudios: systemAudios.length,
+              needsMic,
+              needsSystemAudio,
+            },
+            '[Transcript] Found required RTStreams'
           );
           break;
         } else {
           logger.info(
-            { attempt: attempt + 1 },
-            '[Transcript] No RTStreams yet, waiting...'
+            {
+              attempt: attempt + 1,
+              mics: mics.length,
+              systemAudios: systemAudios.length,
+              needsMic,
+              needsSystemAudio,
+            },
+            '[Transcript] Required RTStreams not ready yet, waiting...'
           );
           await sleep(RETRY_DELAY_MS);
         }
@@ -99,10 +134,16 @@ async function startRealtimeTranscriptionWithWs(
       }
     }
 
-    if (mics.length === 0 && systemAudios.length === 0) {
+    if ((needsMic && mics.length === 0) || (needsSystemAudio && systemAudios.length === 0)) {
       logger.error(
-        { maxRetries: MAX_RETRIES },
-        '[Transcript] Failed to find RTStreams after max retries'
+        {
+          maxRetries: MAX_RETRIES,
+          mics: mics.length,
+          systemAudios: systemAudios.length,
+          needsMic,
+          needsSystemAudio,
+        },
+        '[Transcript] Failed to find required RTStreams after max retries'
       );
       return;
     }

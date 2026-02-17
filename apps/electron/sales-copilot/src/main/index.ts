@@ -9,9 +9,14 @@ import {
   removeIpcHandlers,
   setMainWindow,
   setCopilotMainWindow,
+  setMCPMainWindow,
   sendToRenderer,
   shutdownCaptureClient,
 } from './ipc';
+import {
+  getConnectionOrchestrator,
+  resetConnectionOrchestrator,
+} from './services/mcp';
 import {
   loadAppConfig,
   loadRuntimeConfig,
@@ -68,11 +73,11 @@ async function createWindow(): Promise<void> {
 
   setMainWindow(mainWindow);
   setCopilotMainWindow(mainWindow);
+  setMCPMainWindow(mainWindow);
 
   if (isDev) {
     const VITE_DEV_PORT = 51730;
     await mainWindow.loadURL(`http://localhost:${VITE_DEV_PORT}`);
-    mainWindow.webContents.openDevTools();
   } else {
     await mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   }
@@ -208,6 +213,16 @@ async function startServices(): Promise<void> {
   } catch (tunnelError) {
     logger.error({ error: tunnelError }, '❌ Tunnel startup threw an exception');
   }
+
+  // Initialize MCP orchestrator and connect to auto-connect servers
+  logger.info('🔌 Initializing MCP Connection Orchestrator...');
+  try {
+    const mcpOrchestrator = getConnectionOrchestrator();
+    await mcpOrchestrator.initialize();
+    logger.info('🔌 MCP Connection Orchestrator initialized');
+  } catch (mcpError) {
+    logger.error({ error: mcpError }, '❌ MCP Orchestrator initialization failed');
+  }
 }
 
 let isShuttingDown = false;
@@ -220,6 +235,17 @@ async function stopServices(): Promise<void> {
   isShuttingDown = true;
 
   await shutdownCaptureClient();
+
+  // Shutdown MCP orchestrator
+  logger.info('🔌 Shutting down MCP Connection Orchestrator...');
+  try {
+    const mcpOrchestrator = getConnectionOrchestrator();
+    await mcpOrchestrator.shutdown();
+    resetConnectionOrchestrator();
+    logger.info('🔌 MCP Connection Orchestrator shut down');
+  } catch (mcpError) {
+    logger.error({ error: mcpError }, '❌ MCP Orchestrator shutdown failed');
+  }
 
   const tunnelService = getTunnelService(0);
   await tunnelService.stop();

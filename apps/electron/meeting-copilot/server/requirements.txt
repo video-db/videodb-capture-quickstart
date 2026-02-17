@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-python-dotenv
-pydantic-settings
-requests
-sqlalchemy
-pycloudflared
-# Note: videodb is installed separately from TestPyPI in start-server.sh

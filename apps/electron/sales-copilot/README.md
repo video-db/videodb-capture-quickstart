@@ -27,6 +27,8 @@ Sales Copilot records your sales calls and provides real-time coaching while you
 - **Nudges** - Timely reminders based on conversation context (e.g., "You haven't asked about budget")
 - **Call Summary** - AI-generated summary with key points, action items, objections, and risks
 - **Bookmarking** - Mark important moments during calls for easy reference
+- **MCP Agent Support** - Connect MCP servers and let the app auto-trigger tool calls from conversation context
+- **MCP Result Cards** - Inline tool outputs (including links) shown live during calls
 
 ### Technical
 - **Modern UI** - Built with React, Tailwind CSS, and shadcn/ui
@@ -138,6 +140,35 @@ The copilot pipeline processes conversation in real-time through several paralle
 
 5. **Register with your VideoDB API key** when the app opens
 
+## MCP Server Setup
+
+### Where to Configure
+
+Open **Settings → MCP Servers** in the app.
+
+### How to Add a Server
+
+1. Click **Add Server**
+2. Choose transport:
+   - **stdio** (local command-based MCP server)
+   - **http** (remote MCP endpoint)
+3. Fill required fields (command/args/env or URL/headers)
+4. Save and click **Connect**
+
+### Triggering Behavior
+
+- MCP agent runs automatically during active calls when trigger keywords are detected in transcript context.
+- You can customize trigger keywords from the MCP settings panel.
+- Tool outputs appear in the **MCP Results** panel during the call.
+
+### Capabilities
+
+- Multiple MCP server connections
+- Aggregated tool discovery across connected servers
+- Auto-triggered tool execution from call context
+- Live MCP result rendering (cards, markdown, links, structured fields)
+- Result actions like pin/dismiss while in-call
+
 ## Development
 
 ### Available Scripts
@@ -175,6 +206,7 @@ src/
 │       │   ├── summary-generator.service.ts
 │       │   └── transcript-buffer.service.ts
 │       ├── llm.service.ts
+│       ├── mcp/            # MCP orchestration and tool execution services
 │       ├── tunnel.service.ts
 │       └── videodb.service.ts
 ├── preload/                # Preload scripts (IPC bridge)
@@ -185,13 +217,14 @@ src/
 │   │   ├── copilot/        # Copilot UI components
 │   │   ├── history/        # Recording history views
 │   │   ├── layout/         # App layout (sidebar, titlebar)
+│   │   ├── mcp/            # MCP results/status components
 │   │   ├── recording/      # Recording controls
 │   │   ├── settings/       # Settings editors
 │   │   ├── transcription/  # Live transcription panel
 │   │   └── ui/             # shadcn/ui components
 │   ├── hooks/              # Custom React hooks
 │   ├── lib/                # Utilities
-│   └── stores/             # Zustand state stores
+│   └── stores/             # Zustand state stores (session, copilot, mcp)
 └── shared/                 # Shared types & schemas
     ├── schemas/            # Zod validation schemas
     └── types/              # TypeScript types
@@ -243,6 +276,42 @@ Application data is stored in:
 └── logs/
     └── app-YYYY-MM-DD.log  # Daily log files
 ```
+
+## Architecture
+
+### API Layer (tRPC + Hono)
+
+The embedded HTTP server uses Hono for the web framework and tRPC for type-safe API endpoints:
+
+- `/api/trpc/*` - tRPC endpoints for app operations
+- `/api/webhook` - Raw Hono route for VideoDB webhooks
+
+### State Management
+
+- **Zustand** stores for client-side state (session, config, transcription, copilot)
+- **React Query** for server state caching via tRPC
+
+### IPC Communication
+
+Type-safe IPC between renderer and main process:
+- `window.electronAPI.capture.*` - Recording controls
+- `window.electronAPI.permissions.*` - Permission management
+- `window.electronAPI.copilot.*` - Copilot operations
+- `window.electronAPI.mcp.*` - MCP server and tool operations
+- `window.electronAPI.mcpOn.*` - MCP event subscriptions
+- `window.electronAPI.app.*` - App utilities
+
+### AI Copilot Pipeline
+
+1. **Transcript Buffer** - Accumulates transcript segments
+2. **Context Manager** - Maintains conversation context for LLM
+3. **Parallel Analysis:**
+   - Sentiment Analyzer - Detects customer sentiment
+   - Cue Card Engine - Triggers relevant cue cards
+   - Nudge Engine - Generates contextual nudges
+   - Playbook Tracker - Tracks discovery progress
+   - Conversation Metrics - Calculates talk ratio, pace, etc.
+4. **Summary Generator** - Creates call summary on end
 
 ## License
 

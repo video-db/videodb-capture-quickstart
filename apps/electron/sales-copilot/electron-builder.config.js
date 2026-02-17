@@ -36,8 +36,12 @@ function downloadFile(url, dest) {
 
 function getTargetArchName(arch) {
   if (arch === 1 || arch === 'x64') return 'x64';
-  if (arch === 2 || arch === 'arm64') return 'arm64';
-  return 'unknown';
+  if (arch === 3 || arch === 'arm64') return 'arm64';
+
+  if (process.arch === 'arm64') return 'arm64';
+  if (process.arch === 'x64') return 'x64';
+
+  return 'x64';
 }
 
 function getCloudflaredDownloadUrl(archName) {
@@ -112,7 +116,7 @@ const config = {
     },
   },
   dmg: {
-    title: 'Sales Copilot ${version}',
+    title: 'Sales Copilot ${version}${arch}',
     icon: 'resources/icon.icns',
     window: {
       width: 540,
@@ -242,7 +246,7 @@ const config = {
           console.log('Recorder binary type:', fileOutput.trim());
 
           const targetArch = context.arch;
-          const isArm64 = targetArch === 'arm64' || targetArch === 2; // arch 2 = arm64 in electron-builder
+          const isArm64 = targetArch === 'arm64' || targetArch === 3; // arch 3 = arm64 in electron-builder
           const isX64 = targetArch === 'x64' || targetArch === 1; // arch 1 = x64 in electron-builder
           
           if (isArm64 && fileOutput.includes('x86_64') && !fileOutput.includes('arm64')) {

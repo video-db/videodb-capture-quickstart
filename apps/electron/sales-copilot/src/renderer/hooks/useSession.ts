@@ -3,8 +3,9 @@ import { useSessionStore } from '../stores/session.store';
 import { useTranscriptionStore } from '../stores/transcription.store';
 import { useConfigStore } from '../stores/config.store';
 import { useCopilotStore } from '../stores/copilot.store';
+import { useMCPStore } from '../stores/mcp.store';
 import { trpc } from '../api/trpc';
-import { electronAPI } from '../api/ipc';
+import { getElectronAPI } from '../api/ipc';
 
 export function useSession() {
   const sessionStore = useSessionStore();
@@ -42,13 +43,15 @@ export function useSession() {
   }, [sessionStore.status, sessionStore.startTime]);
 
   const startRecording = useCallback(async () => {
-    if (!electronAPI) {
+    const api = getElectronAPI();
+    if (!api) {
       sessionStore.setError('Electron API not available');
       return;
     }
 
     sessionStore.setStatus('starting');
     transcriptionStore.clear();
+    useMCPStore.getState().clearResults();
 
     try {
       let sessionToken = sessionStore.sessionToken;
@@ -84,7 +87,7 @@ export function useSession() {
         throw new Error('No streams enabled for recording');
       }
 
-      const result = await electronAPI.capture.startRecording({
+      const result = await api.capture.startRecording({
         config: {
           sessionId: captureSession.sessionId,
           streams: streamsConfig,
@@ -113,7 +116,7 @@ export function useSession() {
 
       if (transcriptionStore.enabled && recordingResult?.id) {
         try {
-          const copilotResult = await electronAPI.copilot.startCall(
+          const copilotResult = await api.copilot.startCall(
             recordingResult.id,
             captureSession.sessionId
           );
@@ -141,16 +144,19 @@ export function useSession() {
   ]);
 
   const stopRecording = useCallback(async () => {
-    if (!electronAPI) return;
+    const api = getElectronAPI();
+    if (!api) return;
 
     sessionStore.setStatus('stopping');
 
     try {
-      const result = await electronAPI.capture.stopRecording();
+      const result = await api.capture.stopRecording();
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to stop recording');
       }
+
+      useMCPStore.getState().clearResults();
 
       if (sessionStore.sessionId) {
         await stopRecordingMutation.mutateAsync({
@@ -160,7 +166,7 @@ export function useSession() {
 
       if (useCopilotStore.getState().isCallActive) {
         try {
-          const copilotResult = await electronAPI.copilot.endCall();
+          const copilotResult = await api.copilot.endCall();
           if (copilotResult.success && copilotResult.summary) {
             const duration = useCopilotStore.getState().callDuration || 0;
             useCopilotStore.getState().setCallSummary(copilotResult.summary, duration);
@@ -193,7 +199,8 @@ export function useSession() {
 
   const toggleStream = useCallback(
     async (stream: 'microphone' | 'systemAudio' | 'screen') => {
-      if (!electronAPI) return;
+      const api = getElectronAPI();
+      if (!api) return;
 
       const currentState = sessionStore.streams[stream];
       sessionStore.toggleStream(stream);
@@ -208,9 +215,9 @@ export function useSession() {
 
         if (channelId) {
           if (currentState) {
-            await electronAPI.capture.pauseTracks([channelId]);
+            await api.capture.pauseTracks([channelId]);
           } else {
-            await electronAPI.capture.resumeTracks([channelId]);
+            await api.capture.resumeTracks([channelId]);
           }
         }
       }

@@ -302,37 +302,37 @@ export function setupCaptureHandlers(): void {
         try {
           logger.info('Listing available channels');
           const channels = await captureClient.listChannels();
-          logger.info({ channelCount: channels.length }, 'Channels listed successfully');
-          
-          const micChannel = channels.find(ch => ch.type === 'audio' && ch.channelId.startsWith('mic:'));
+          logger.info({ channelCount: channels.all().length }, 'Channels listed successfully');
+
+          const micChannel = channels.mics.default;
           if (micChannel && config.streams?.microphone !== false) {
             captureChannels.push({
-              channelId: micChannel.channelId,
+              channelId: micChannel.id,
               type: 'audio',
               record: true,
               transcript: enableTranscription,
             });
           }
 
-          const systemAudioChannel = channels.find(ch => ch.type === 'audio' && ch.channelId.startsWith('system_audio:'));
+          const systemAudioChannel = channels.systemAudio.default;
           if (systemAudioChannel && config.streams?.systemAudio !== false) {
             captureChannels.push({
-              channelId: systemAudioChannel.channelId,
+              channelId: systemAudioChannel.id,
               type: 'audio',
               record: true,
               transcript: enableTranscription,
             });
           }
 
-          const displayChannel = channels.find(ch => ch.type === 'video');
+          const displayChannel = channels.displays.default;
           if (displayChannel && config.streams?.screen !== false) {
             captureChannels.push({
-              channelId: displayChannel.channelId,
+              channelId: displayChannel.id,
               type: 'video',
               record: true,
             });
           }
-          
+
           logger.info({ captureChannels }, 'Channel configs prepared from listed channels');
         } catch (listError) {
           logger.warn({ error: listError }, 'listChannels failed, using fallback channel IDs');
@@ -359,11 +359,18 @@ export function setupCaptureHandlers(): void {
         }
 
         logger.info({ captureChannels }, 'Starting capture with channels');
-        await captureClient.startCaptureSession({
-          sessionId: config.sessionId,
-          channels: captureChannels,
-        });
-        logger.info({ sessionId: config.sessionId }, 'Capture session started');
+        try {
+          await captureClient.startSession({
+            sessionId: config.sessionId,
+            channels: captureChannels,
+          });
+          logger.info({ sessionId: config.sessionId }, 'Capture session started');
+        } catch (captureError) {
+          const msg = captureError instanceof Error ? captureError.message : String(captureError);
+          const stack = captureError instanceof Error ? captureError.stack : undefined;
+          logger.error({ err: captureError, message: msg, stack }, 'CaptureClient.startSession failed');
+          throw captureError;
+        }
 
         // Manually emit recording:started immediately (matches Python behavior, doesn't wait for SDK event)
         logger.info({ sessionId: config.sessionId }, 'Emitting recording:started event to renderer');
@@ -380,12 +387,14 @@ export function setupCaptureHandlers(): void {
           sysAudioWsConnectionId: wsConnectionIds?.sysAudioWsId || undefined,
         };
       } catch (error) {
-        logger.error({ error }, 'Failed to start recording');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        logger.error({ err: error, errorMessage, errorStack }, 'Failed to start recording');
         await cleanupTranscriptWebSockets();
         cleanupCapture();
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: errorMessage,
         };
       }
     }
@@ -400,7 +409,7 @@ export function setupCaptureHandlers(): void {
         if (captureClient) {
           removeCaptureEventListeners();
 
-          await captureClient.stopCaptureSession();
+          await captureClient.stopSession();
           logger.info('Capture session stopped');
 
           await captureClient.shutdown();
@@ -493,9 +502,10 @@ export function setupCaptureHandlers(): void {
         };
         
         const channels = await listChannelsWithTimeout(30000);
-        logger.info({ channelCount: channels.length, channels }, 'listChannels returned');
-        return channels.map((ch: { channelId: string; type: string; name?: string }) => ({
-          channelId: ch.channelId,
+        const allChannels = channels.all();
+        logger.info({ channelCount: allChannels.length, channels: allChannels }, 'listChannels returned');
+        return allChannels.map((ch) => ({
+          channelId: ch.id,
           type: ch.type as 'audio' | 'video',
           name: ch.name,
         }));
@@ -570,7 +580,7 @@ export async function shutdownCaptureClient(): Promise<void> {
     captureClient = null;
 
     try {
-      await client.stopCaptureSession();
+      await client.stopSession();
     } catch (error) {
       logger.warn({ error }, 'Error stopping capture session during shutdown');
     }

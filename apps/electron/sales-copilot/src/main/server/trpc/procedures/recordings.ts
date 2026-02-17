@@ -128,4 +128,59 @@ export const recordingsRouter = router({
 
       return toApiRecording(recording);
     }),
+
+  markFailed: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .output(RecordingSchema.nullable())
+    .mutation(async ({ input }) => {
+      logger.info({ sessionId: input.sessionId }, 'Marking recording as failed');
+
+      const recording = updateRecordingBySessionId(input.sessionId, {
+        status: 'failed',
+      });
+
+      if (!recording) {
+        logger.warn({ sessionId: input.sessionId }, 'Recording not found');
+        return null;
+      }
+
+      logger.info(
+        { recordingId: recording.id, sessionId: input.sessionId },
+        'Recording marked as failed'
+      );
+
+      return toApiRecording(recording);
+    }),
+
+  cleanupStale: protectedProcedure
+    .input(z.object({ maxAgeMinutes: z.number().default(30) }))
+    .output(z.object({ cleaned: z.number() }))
+    .mutation(async ({ input }) => {
+      logger.info({ maxAgeMinutes: input.maxAgeMinutes }, 'Cleaning up stale recordings');
+
+      const recordings = getAllRecordings();
+      const now = Date.now();
+      const maxAgeMs = input.maxAgeMinutes * 60 * 1000;
+      let cleaned = 0;
+
+      for (const recording of recordings) {
+        // Only clean up recordings that are stuck AND have no useful data
+        if ((recording.status === 'processing' || recording.status === 'recording') && !recording.callSummary) {
+          const createdAt = new Date(recording.createdAt).getTime();
+          const age = now - createdAt;
+
+          if (age > maxAgeMs) {
+            updateRecordingBySessionId(recording.sessionId, { status: 'failed' });
+            logger.info(
+              { recordingId: recording.id, sessionId: recording.sessionId, ageMinutes: Math.round(age / 60000) },
+              'Marked stale recording as failed'
+            );
+            cleaned++;
+          }
+        }
+      }
+
+      logger.info({ cleaned }, 'Stale recordings cleanup complete');
+      return { cleaned };
+    }),
 });
