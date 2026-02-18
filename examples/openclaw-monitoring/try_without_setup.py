@@ -4,7 +4,7 @@ Try Without Setup - Monitor a Live OpenClaw Agent Instantly
 VideoDB hosts a live OpenClaw agent at matrix.videodb.io. This script connects
 directly to its RTSP streams (audio + screen), starts real-time transcription,
 audio/visual indexing, and alerts, then prints all events via WebSocket.
-Automatically stops after 5 minutes.
+Press Ctrl+C to stop and search the indexed content.
 
 No EC2 instance, no OpenClaw installation, no Capture SDK needed — just a
 VIDEO_DB_API_KEY in your .env file.
@@ -39,8 +39,6 @@ DEFAULT_ALERT_PROMPT = (
     "results, documentation, or any other web content."
 )
 DEFAULT_ALERT_LABEL = "browser-open"
-
-HARD_STOP_SECONDS = 5 * 60  # 5 minutes
 
 if not VIDEO_DB_API_KEY:
     raise ValueError("VIDEO_DB_API_KEY not set in .env")
@@ -256,7 +254,7 @@ async def main():
 
     # --- Live events ---
     header("Live Events")
-    print(f"  {DIM}Listening for real-time events... (Ctrl+C or auto-stop in {HARD_STOP_SECONDS // 60} min){RESET}\n")
+    print(f"  {DIM}Listening for real-time events... (Ctrl+C to stop){RESET}\n")
 
     # Graceful shutdown
     stop_event = asyncio.Event()
@@ -271,15 +269,11 @@ async def main():
 
     ws_task = asyncio.create_task(listen_ws(ws))
     stop_task = asyncio.create_task(stop_event.wait())
-    timeout_task = asyncio.create_task(asyncio.sleep(HARD_STOP_SECONDS))
 
     done, pending = await asyncio.wait(
-        [ws_task, stop_task, timeout_task],
+        [ws_task, stop_task],
         return_when=asyncio.FIRST_COMPLETED,
     )
-
-    if timeout_task in done:
-        print(f"\n  {YELLOW}Hard stop: {HARD_STOP_SECONDS // 60} minute limit reached.{RESET}")
 
     for task in pending:
         task.cancel()
