@@ -85,19 +85,30 @@ To prevent the Mac from locking during unattended operation:
 
 # 2. OpenClaw Setup
 
-Inside the macOS session (via VNC or SSH), run:
+Inside the macOS session (via VNC or SSH), install OpenClaw:
 
 ```bash
 curl -fsSL https://openclaw.ai/install.sh | bash
 ```
 
-Follow the interactive setup:
+Alternatively, install via npm (requires Node 22+):
+
+```bash
+npm i -g openclaw
+openclaw onboard
+```
+
+### Follow the Interactive Setup
 
 1. Confirm and select **QuickStart** onboarding mode
-2. Select **OpenAI** as model provider, enter your API key
-3. Select a default model (e.g. `openai/gpt-5.2`)
+2. Choose a model provider (Anthropic, OpenAI, local models, etc.) and enter your API key
+3. Select a default model
 
-### Set Up Telegram Bot
+### Connect a Communication Channel
+
+OpenClaw supports 50+ channels including WhatsApp, Telegram, Discord, Slack, Signal, iMessage, and more. Choose whichever you prefer.
+
+For example, to set up **Telegram**:
 
 1. Open Telegram, message [@BotFather](https://t.me/BotFather)
 2. Send `/newbot`, follow the prompts, copy the bot token
@@ -129,7 +140,15 @@ openclaw config get gateway.auth.token
 
 ## Start the Backend (on your local machine)
 
-The backend runs on your local machine (or any server). It handles VideoDB session creation, webhook events, and AI pipelines.
+The backend runs on your local machine (or any server). It is responsible for:
+
+- **Session management** — creates VideoDB capture sessions and generates client tokens
+- **Webhook handling** — receives lifecycle events from VideoDB (session active, stopping, stopped, exported)
+- **AI pipelines** — when a session becomes active, automatically starts audio indexing, visual indexing, and transcription on the captured streams
+- **Alerts** — sets up OpenClaw-specific alerts (e.g. agent errors, agent idle) that trigger when matching conditions are detected on screen
+- **Cloudflare tunnel** — exposes the backend via a public URL so the remote Mac client and VideoDB webhooks can reach it
+
+### Setup
 
 1. Clone the quickstart repo and go to the `openclaw-monitoring` directory
 2. Create a `.env` file with your VideoDB API key:
@@ -146,6 +165,27 @@ uv run backend.py
 
 The backend will start a Cloudflare tunnel and print the public URL. Copy this URL — you'll need it for the client.
 
+### Customizing Alerts
+
+The backend comes with two default alerts defined in the `ALERTS` list in `backend.py`:
+
+- **`agent-error`** — triggers when the screen shows an error dialog, crash report, or exception traceback
+- **`browser-open`** — triggers when a web browser window is visible on screen
+
+You can add your own alerts by appending to the `ALERTS` list:
+
+```python
+ALERTS = [
+    # ... existing alerts ...
+    {
+        "label": "browser-open",
+        "prompt": "A web browser window is open and visible on screen.",
+    },
+]
+```
+
+Each alert needs a `label` (identifier) and a `prompt` (natural language description of the condition to detect). Alerts are attached to the visual index and fire in real-time via WebSocket when the condition is detected.
+
 ## Start the Client (on the Mac EC2 instance)
 
 **This must be run from the VNC session** (not SSH), as macOS requires a GUI context to grant screen capture permission.
@@ -153,16 +193,14 @@ The backend will start a Cloudflare tunnel and print the public URL. Copy this U
 1. Install dependencies on the Mac instance:
 
 ```bash
-brew install tmux
 brew install uv
 ```
 
 2. Clone the quickstart repo and go to the `openclaw-monitoring` directory
 
-3. Start the client in a tmux session:
+3. Start the client:
 
 ```bash
-tmux new -s client
 uv run start_monitoring.py
 ```
 
@@ -241,12 +279,37 @@ visual_index = display.index_visuals(
 )
 ```
 
-## Search Indexed Content
+## Create Alerts
 
-Once indexing is running, you can search across what has been indexed:
+Alerts let you detect specific conditions on screen in real-time. First, create an event that describes what to watch for, then attach it to a visual index:
 
 ```python
-results = display.search(query="browser window", result_threshold=5)
+# Create an event (reuse if one with the same label already exists)
+event_id = conn.create_event(
+    event_prompt="The agent is displaying an error or crash dialog on screen.",
+    label="agent-error",
+)
+
+# Attach the alert to a visual index
+visual_index = display.index_visuals(
+    prompt="Describe what is on screen.",
+    ws_connection_id=ws.connection_id,
+)
+alert_id = visual_index.create_alert(
+    event_id=event_id,
+    callback_url="https://your-webhook-url/webhook",
+    ws_connection_id=ws.connection_id,
+)
+```
+
+When the condition is detected, you'll receive an alert event on the WebSocket with the label, confidence score, and context.
+
+## Search Indexed Content
+
+Once indexing is running, you can search across what has been indexed using natural language:
+
+```python
+results = display.search(query="agent encountered an error", result_threshold=5)
 shots = results.get_shots()
 
 for shot in shots:
@@ -266,5 +329,7 @@ async for msg in ws.receive():
         print(f"Audio Index: {data.get('text')}")
     elif channel in ("scene_index", "visual_index"):
         print(f"Visual Index: {data.get('text')}")
+    elif channel == "alert":
+        print(f"Alert [{data.get('label')}]: confidence={data.get('confidence')} {data.get('text')}")
 ```
 

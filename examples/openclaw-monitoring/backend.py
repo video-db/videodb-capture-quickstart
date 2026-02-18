@@ -27,6 +27,29 @@ if not VIDEO_DB_API_KEY:
 conn = None
 public_url = None
 
+# --- Alert Configuration ---
+# Customize these alerts for your OpenClaw monitoring use case.
+# Each alert defines a condition to watch for on the agent's screen.
+
+ALERTS = [
+    {
+        "label": "agent-error",
+        "prompt": (
+            "The screen is showing an error dialog, crash report, exception traceback, "
+            "or any kind of failure message. This includes application errors, system alerts "
+            "about an app not responding, or terminal output with error messages."
+        ),
+    },
+    {
+        "label": "browser-open",
+        "prompt": (
+            "A web browser window (such as Chrome, Firefox, Safari, or Edge) is open "
+            "and visible on screen. The browser could be showing any webpage, search "
+            "results, documentation, or any other web content."
+        ),
+    },
+]
+
 
 # --- Initialization ---
 
@@ -90,24 +113,41 @@ def start_ws_listener(ws_id_queue, name="Listener"):
 
                 async for msg in ws.receive():
                     channel = msg.get("channel")
+                    if channel == "capture_session":
+                        continue
                     data = msg.get("data", {})
 
+                    # Only show final transcript segments
                     if channel == "transcript":
+                        if not data.get("is_final", False):
+                            continue
                         text = data.get("text", "")
                         if text.strip():
-                            print(f"[{name}] {text}")
+                            print(f"[{name}] Transcript: {text}")
+
                     elif channel == "audio_index":
                         text = data.get("text", "")
                         if text.strip():
                             print(f"\n{'*' * 50}")
                             print(f"[{name}] Audio Index: {text}")
                             print(f"{'*' * 50}")
+
                     elif channel in ["scene_index", "visual_index"]:
                         text = data.get("text", "")
                         if text.strip():
                             print(f"\n{'*' * 50}")
                             print(f"[{name}] Visual Index: {text}")
                             print(f"{'*' * 50}")
+
+                    elif channel == "alert":
+                        label = data.get("label", "")
+                        confidence = data.get("confidence", "")
+                        text = data.get("text", "")
+                        print(f"\n{'!' * 50}")
+                        print(f"[{name}] ALERT [{label}] confidence={confidence}")
+                        if text:
+                            print(f"  {text}")
+                        print(f"{'!' * 50}")
 
             except Exception as e:
                 print(f"[{name}] Error: {e}")
@@ -120,6 +160,33 @@ def start_ws_listener(ws_id_queue, name="Listener"):
     t = threading.Thread(target=run, daemon=True)
     t.start()
     return t
+
+
+def setup_alerts(visual_index, ws_id):
+    """Creates alert events and attaches them to the visual index."""
+    for alert_config in ALERTS:
+        label = alert_config["label"]
+        prompt = alert_config["prompt"]
+
+        # Reuse existing event if one with the same label exists
+        existing_events = conn.list_events()
+        event_id = None
+        for ev in existing_events:
+            if ev.get("label") == label:
+                event_id = ev.get("event_id")
+                print(f"  Reusing event: {label} (id={event_id})")
+                break
+
+        if not event_id:
+            event_id = conn.create_event(event_prompt=prompt, label=label)
+            print(f"  Created event: {label} (id={event_id})")
+
+        alert_id = visual_index.create_alert(
+            event_id=event_id,
+            callback_url=f"{public_url}/webhook",
+            ws_connection_id=ws_id,
+        )
+        print(f"  Alert attached: {label} (alert_id={alert_id})")
 
 
 # --- Webhook Handler & AI Pipelines ---
@@ -186,11 +253,15 @@ def webhook():
                 start_ws_listener(q, name="VisualWatcher")
                 ws_id = q.get(timeout=10)
 
-                display.index_visuals(
+                visual_index = display.index_visuals(
                     prompt="In one sentence, describe the active application and what the agent is doing on screen. Note the current time if a clock is visible.",
                     ws_connection_id=ws_id,
                 )
                 print(f"  Visual indexing started (socket: {ws_id})")
+
+                # Set up OpenClaw-specific alerts
+                print("  Setting up alerts...")
+                setup_alerts(visual_index, ws_id)
 
         except Exception as e:
             print(f"Error in webhook processing: {e}")
@@ -213,13 +284,6 @@ def webhook():
             print(f"  Stream URL: {stream_url}")
         if player_url:
             print(f"  Player URL: {player_url}")
-
-        print(f"\n{'=' * 60}")
-        print("What's next?")
-        print("  - Try different index_audio() prompts for richer insights")
-        print("  - Build alerts with rtstream.create_alert()")
-        print("  - Explore the full SDK: https://docs.videodb.io")
-        print(f"{'=' * 60}")
 
     return jsonify({"received": True})
 
