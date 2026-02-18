@@ -66,7 +66,7 @@ Sales Copilot records your sales calls and provides real-time coaching while you
 
 ## Architecture
 
-![Sales Copilot Architecture](../../assets/meeting-copilot-architecture.png)
+![Sales Copilot Architecture](../../assets/sales-copilot-architecture.png)
 
 ## How the Copilot Works
 
