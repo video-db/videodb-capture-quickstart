@@ -20,21 +20,7 @@
 
 ## Demo
 
-<p align="center">
-  <a href="http://console.videodb.io/player?url=https://dseetlpshk2tb.cloudfront.net/v3/published/manifests/3da6bdc0-7acf-4197-8579-5d0b9ce2a717.m3u8">
-    <img src="https://img.shields.io/badge/▶_Watch_Demo-blue?style=for-the-badge" alt="Watch Demo" />
-  </a>
-</p>
-
-<p align="center">
-  <iframe
-    src="http://console.videodb.io/player?url=https://dseetlpshk2tb.cloudfront.net/v3/published/manifests/3da6bdc0-7acf-4197-8579-5d0b9ce2a717.m3u8"
-    width="100%"
-    height="450"
-    style="max-width: 800px; border: none;"
-    allowfullscreen>
-  </iframe>
-</p>
+[![Watch the Video](https://github.com/user-attachments/assets/8d1a8cab-0f43-48a5-be1c-4a91b76af90f)](https://dseetlpshk2tb.cloudfront.net/v3/published/manifests/3da6bdc0-7acf-4197-8579-5d0b9ce2a717.m3u8)
 
 ---
 
