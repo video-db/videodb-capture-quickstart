@@ -6,6 +6,20 @@ This guide walks you through deploying a macOS EC2 instance on AWS, installing [
 
 ---
 
+## Try It Without Any Setup
+
+Want to skip the EC2 and OpenClaw installation? VideoDB hosts a live OpenClaw agent at `matrix.videodb.io` that you can monitor right away. Just add your `VIDEO_DB_API_KEY` to a `.env` file and run:
+
+```bash
+uv run try_without_setup.py
+```
+
+This connects directly to the hosted agent's RTSP streams (audio + screen), starts real-time transcription, audio/visual indexing, and alerts, and prints all events to your terminal. Press `Ctrl+C` to stop and interactively search the indexed content.
+
+If you want to set up your own OpenClaw instance and monitor it 24/7, continue with the full guide below.
+
+---
+
 ## Table of Contents
 
 1. [EC2 Mac Setup](#1-ec2-mac-setup) — Provision and connect to a macOS instance on AWS
