@@ -1,0 +1,5 @@
+videodb[capture]==0.4.0
+flask
+pycloudflared
+python-dotenv
+requests

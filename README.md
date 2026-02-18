@@ -66,54 +66,25 @@ A real-time desktop capture SDK that lets your AI see and hear what's happening 
 
 Each app below is fully functional and can be run locally. They demonstrate different use cases:
 
-| App | Use Case | What It Does | Tech Stack |
-|-----|----------|--------------|------------|
-| **[Pair Programmer](./apps/claude/pair-programmer/README.md)** | 🤖 AI Coding Assistant | Claude Code watches your screen and hears your audio. Hit `Cmd+Shift+A` and ask "what's that error?" — it reads your terminal and answers instantly. | Electron, Node.js, Claude Code |
-| **[Focusd](./apps/electron/focusd-productivity-tracker/README.md)** | 📊 Productivity Tracking | Records your screen all day, understands what you're working on, generates session summaries and daily recaps with actionable insights. | Electron, React, TypeScript, SQLite |
-| **[Sales Copilot](./apps/electron/sales-copilot/README.md)** | 💼 Sales Coaching | Real-time cue cards, sentiment tracking, talk ratio monitoring, and post-call summaries during sales calls. | Electron, React, TypeScript, tRPC |
+| App | Use Case | What It Does |
+|-----|----------|--------------|
+| **[Pair Programmer](./examples/claude-pair-programmer/README.md)** | 👁️ Perception for Claude Code | Give Claude Code eyes and ears. Sees your screen, hears what you say, remembers what just happened — like a programmer sitting next to you. No more copy-pasting or repeated context. [Install as plugin →](https://github.com/video-db/claude-code/tree/main/plugins/pair-programmer) |
+| **[Focusd](./examples/focusd-productivity-tracker/README.md)** | 📊 Productivity Tracking | Records your screen all day, understands what you're working on, generates session summaries and daily recaps with actionable insights.|
+| **[Sales Copilot](./examples/sales-copilot/README.md)** | 💼 Sales Coaching | Real-time cue cards, sentiment tracking, talk ratio monitoring, and post-call summaries during sales calls.|
+| **[Async Recorder](./examples/async-recorder)** | 🎥 Async Video Messages | Record async video messages with camera bubble overlay, perfect for team updates and demos.|
 
-### More Examples
+### Quickstart Examples
 
 | App | Description |
 |-----|-------------|
-| [Meeting Copilot](./apps/electron/meeting-copilot) | 📞 Live meeting transcription and AI insights |
-| [Loom Clone](./apps/electron/loom-electron) | 🎥 Async video recorder with camera bubble |
-| [Resonant AI](./apps/electron/resonant-ai-recommender) | 🔍 Content recommender from screen context |
-| [Node.js Quickstart](./apps/quickstart/node-quickstart) | ⚡ Minimal example to get started fast |
-| [Python Quickstart](./apps/quickstart/python-quickstart) | 🐍 Python version of quickstart |
+| [Node.js Quickstart](./quickstart/node-quickstart) | ⚡ Minimal example to get started fast |
+| [Python Quickstart](./quickstart/python-quickstart) | 🐍 Python version of quickstart |
 
-> 💡 **New to VideoDB?** Start with the [Node.js Quickstart](./apps/quickstart/node-quickstart) or [Python Quickstart](./apps/quickstart/python-quickstart) to understand the basics, then explore the featured apps.
+> 💡 **New to VideoDB?** Start with the [Node.js Quickstart](./quickstart/node-quickstart) or [Python Quickstart](./quickstart/python-quickstart) to understand the basics, then explore the featured apps.
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    subgraph Backend["🔐 Your Backend"]
-        B1[Create Session]
-        B2[Mint Token]
-        B3[Receive Webhooks]
-        B4["Start AI Pipelines"]
-        B5["WebSocket Listener"]
-    end
-
-    subgraph Client["🖥️ Desktop Client"]
-        C1["CaptureClient"]
-        C2["Channels:<br/>mic · system_audio · display"]
-    end
-
-    subgraph VDB["☁️ VideoDB Cloud"]
-        V1[Session Manager]
-        V2["RTStreams<br/>(one per channel)"]
-        V3["AI Processing"]
-    end
-
-    B1 --> V1
-    B2 -->|short-lived token| C1
-    C1 --> C2 -->|media streams| V2
-    V1 -->|"Webhooks (durable)"| B3
-    B3 --> B4 --> V3
-    V3 -->|"WebSocket (live)"| B5
-```
+![Capture Architecture](assets/capture-architecture.png)
 
 **Key insight:** You control the AI. When you get the `capture_session.active` webhook, you decide which RTStreams to process and what prompts to use.
 

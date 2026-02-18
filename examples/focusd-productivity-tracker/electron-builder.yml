@@ -1,0 +1,26 @@
+appId: com.videodb.focusd
+productName: VideoDB Focusd
+directories:
+  buildResources: assets
+  output: release
+files:
+  - out/**/*
+  - node_modules/**/*
+asarUnpack:
+  - "node_modules/videodb/bin/**"
+  - "node_modules/better-sqlite3/build/**"
+extraResources:
+  - config.yaml
+mac:
+  category: public.app-category.productivity
+  icon: assets/icon.png
+  identity: null
+  target:
+    - dmg
+win:
+  icon: assets/icon.png
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
