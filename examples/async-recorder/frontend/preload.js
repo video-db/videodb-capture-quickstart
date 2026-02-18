@@ -8,8 +8,6 @@ contextBridge.exposeInMainWorld('recorderAPI', {
     pauseTracks: (sessionId, tracks) => ipcRenderer.invoke('recorder-pause-tracks', sessionId, tracks),
     resumeTracks: (sessionId, tracks) => ipcRenderer.invoke('recorder-resume-tracks', sessionId, tracks),
     onRecorderEvent: (callback) => ipcRenderer.on('recorder-event', (event, data) => callback(data)),
-    showMeetingNotification: (data) => ipcRenderer.invoke('show-meeting-notification', data),
-    onStartFromNotification: (callback) => ipcRenderer.on('start-session-from-notification', () => callback()),
     getRecordings: () => ipcRenderer.invoke('get-recordings'),
 
     // Electron specific permission checks logic (optional fallback)

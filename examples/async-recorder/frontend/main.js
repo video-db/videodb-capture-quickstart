@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, systemPreferences, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { CaptureClient } = require('videodb/capture');
@@ -16,6 +16,7 @@ let captureClient = null;
 
 const CONFIG_FILE = path.join(app.getPath('userData'), 'config.json');
 const RUNTIME_FILE = path.join(__dirname, '..', 'runtime.json');
+const AUTH_CONFIG_FILE = path.join(__dirname, '..', 'auth_config.json');
 
 let appConfig = {
   accessToken: null,
@@ -79,12 +80,86 @@ function loadRuntimeConfig() {
 let cachedSessionToken = null;
 let tokenExpiresAt = null;
 
+// 3. Auto-register from auth_config.json (created by npm run setup)
+async function autoRegisterFromSetup() {
+  // Check if auth_config.json exists (from npm run setup)
+  if (!fs.existsSync(AUTH_CONFIG_FILE)) {
+    // No setup file - use existing config or show onboarding
+    return;
+  }
+
+  // auth_config.json exists - always register with these credentials
+  // This allows users to re-run setup to update their API key
+  try {
+    const authConfig = JSON.parse(fs.readFileSync(AUTH_CONFIG_FILE, 'utf8'));
+    const { apiKey, name } = authConfig;
+
+    if (!apiKey) {
+      console.log('No API key in auth_config.json');
+      fs.unlinkSync(AUTH_CONFIG_FILE);
+      return;
+    }
+
+    console.log(`Registering from setup: ${name || 'Guest'}`);
+
+    // Wait for runtime config to be available
+    if (!runtimeConfig.backendBaseUrl) {
+      console.log('Backend not ready, will register on next launch');
+      return;
+    }
+
+    const baseUrl = runtimeConfig.backendBaseUrl;
+    const registerUrl = `${baseUrl}/api/register`;
+
+    const response = await fetch(registerUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name || 'Guest', api_key: apiKey })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Registration failed:', errorText);
+      // Delete auth_config.json and clear old token so onboarding shows
+      fs.unlinkSync(AUTH_CONFIG_FILE);
+      appConfig.accessToken = null;
+      saveUserConfig({ accessToken: null, userName: null });
+      console.log('Invalid credentials - please re-enter in onboarding');
+      return;
+    }
+
+    const result = await response.json();
+    console.log('Registration successful!');
+
+    // Save user config
+    const newConfig = {
+      accessToken: result.access_token,
+      userName: result.name
+    };
+    saveUserConfig(newConfig);
+
+    // Delete auth_config.json after successful registration
+    fs.unlinkSync(AUTH_CONFIG_FILE);
+    console.log('Setup complete - auth_config.json removed');
+
+  } catch (error) {
+    console.error('Registration error:', error);
+    // Clean up on error
+    if (fs.existsSync(AUTH_CONFIG_FILE)) {
+      fs.unlinkSync(AUTH_CONFIG_FILE);
+    }
+  }
+}
+
 // Initialize SDK on app ready
 async function initializeSDK() {
   try {
     // Load configs
     loadUserConfig();
     loadRuntimeConfig();
+
+    // Auto-register if setup was run but not yet registered
+    await autoRegisterFromSetup();
 
     console.log('VideoDB SDK Configuration:');
     console.log('- AUTH_STATUS:', appConfig.accessToken ? 'Connected' : 'Needs Connection');
@@ -126,16 +201,6 @@ function setupCaptureClientEvents(client) {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('recorder-event', {
         event: 'recording:error',
-        data
-      });
-    }
-  });
-
-  client.on('transcript', (data) => {
-    console.log('SDK Event: transcript', data);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('recorder-event', {
-        event: 'transcript',
         data
       });
     }
@@ -289,50 +354,52 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
 
     // 5. List available channels
     console.log('Listing available channels...');
-    let channels = [];
+    let channels;
     try {
       channels = await captureClient.listChannels();
-      console.log('Available channels:', channels.map(ch => `${ch.channelId} (${ch.type})`).join(', '));
+      // Log all available channels
+      for (const ch of channels.all()) {
+        console.log(`  - ${ch.id} (${ch.type}): ${ch.name}`);
+      }
     } catch (err) {
       console.error('Failed to list channels:', err);
       return { success: false, error: 'Failed to list capture channels' };
     }
 
-    // 6. Select channels for capture
+    // 6. Select channels for capture (using new SDK API)
     const captureChannels = [];
 
-    // Find microphone channel
-    const micChannel = channels.find(ch => ch.type === 'audio' && ch.channelId.startsWith('mic:'));
+    // Get default mic channel
+    const micChannel = channels.mics.default;
     if (micChannel) {
       captureChannels.push({
-        channelId: micChannel.channelId,
+        channelId: micChannel.id,
         type: 'audio',
-        record: true,
-        transcript: config?.transcription?.enabled ?? true,
+        store: true
       });
-      console.log(`Selected mic channel: ${micChannel.channelId}`);
+      console.log(`Selected mic channel: ${micChannel.id}`);
     }
 
-    const systemAudioChannel = channels.find(ch => ch.type === 'audio' && ch.channelId.startsWith('system_audio:'));
+    // Get default system audio channel
+    const systemAudioChannel = channels.systemAudio.default;
     if (systemAudioChannel) {
       captureChannels.push({
-        channelId: systemAudioChannel.channelId,
+        channelId: systemAudioChannel.id,
         type: 'audio',
-        record: true,
-        transcript: false,
+        store: true
       });
-      console.log(`Selected system audio channel: ${systemAudioChannel.channelId}`);
+      console.log(`Selected system audio channel: ${systemAudioChannel.id}`);
     }
 
-    // Find display channel
-    const displayChannel = channels.find(ch => ch.type === 'video');
+    // Get default display channel
+    const displayChannel = channels.displays.default;
     if (displayChannel) {
       captureChannels.push({
-        channelId: displayChannel.channelId,
+        channelId: displayChannel.id,
         type: 'video',
-        record: true,
+        store: true,
       });
-      console.log(`Selected display channel: ${displayChannel.channelId}`);
+      console.log(`Selected display channel: ${displayChannel.id}`);
     }
 
     if (captureChannels.length === 0) {
@@ -346,7 +413,7 @@ ipcMain.handle('recorder-start-recording', async (event, clientSessionId, config
       channels: captureChannels
     }, null, 2));
 
-    await captureClient.startCaptureSession({
+    await captureClient.startSession({
       sessionId: captureSessionId,
       channels: captureChannels,
     });
@@ -392,7 +459,7 @@ ipcMain.handle('recorder-stop-recording', async (event, sessionId) => {
     console.log(`Stopping recording for session: ${sessionId}`);
 
     if (captureClient) {
-      await captureClient.stopCaptureSession();
+      await captureClient.stopSession();
       console.log('Capture session stopped');
 
       // Shutdown the capture client to release the binary
@@ -683,37 +750,6 @@ ipcMain.handle('recorder-logout', async () => {
     console.error('Logout failed:', error);
     return { success: false, error: error.message };
   }
-});
-
-// Meeting Notification Handler
-ipcMain.handle('show-meeting-notification', async (event, data) => {
-  const title = 'Meeting Detected';
-  const body = `Join ${data.windowTitle || 'Meeting'}?`;
-
-  const notification = new Notification({
-    title,
-    body,
-    actions: [{ type: 'button', text: 'Start Recording' }]
-  });
-
-  notification.on('click', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
-
-  notification.on('action', (event, index) => {
-    if (index === 0) {
-      console.log('Notification Action: Start Recording');
-      if (mainWindow) {
-        mainWindow.webContents.send('start-session-from-notification');
-      }
-    }
-  });
-
-  notification.show();
-  return { success: true };
 });
 
 // Camera Window Handler

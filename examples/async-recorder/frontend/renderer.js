@@ -31,12 +31,6 @@ if (!window.hasRegisteredRecorderEvents) {
         addLog(`Recording error: ${data.error || data.message || 'Unknown error'}`, 'error');
         resetSessionUI();
         break;
-      case 'transcript':
-        // Handle real-time transcript events
-        if (data.text) {
-          console.log(`Transcript: ${data.text}`);
-        }
-        break;
       case 'upload:progress':
         console.log(`Upload progress: ${data.channelId} - ${Math.round((data.progress || 0) * 100)}%`);
         break;
@@ -52,18 +46,6 @@ if (!window.hasRegisteredRecorderEvents) {
   });
 }
 
-function showSystemNotification(data) {
-  window.recorderAPI.showMeetingNotification({
-    windowTitle: data.window?.title || 'Meeting'
-  });
-}
-
-// Listen for notification action to start session
-window.recorderAPI.onStartFromNotification(() => {
-  console.log('Received: Start session from notification');
-  startSessionFlow();
-});
-
 async function startSessionFlow() {
   // Generate Session ID
   const sessionId = 'session-' + Date.now();
@@ -72,9 +54,7 @@ async function startSessionFlow() {
   setSessionLoading();
 
   try {
-    const result = await window.recorderAPI.startSession(sessionId, {
-      transcription: { enabled: false }
-    });
+    const result = await window.recorderAPI.startSession(sessionId);
 
     if (!result.success) {
       addLog(`Failed to start: ${result.error}`, 'error');

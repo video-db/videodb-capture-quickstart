@@ -45,9 +45,6 @@ call "%VENV_DIR%\Scripts\activate.bat"
 
 pip install -r "%SERVER_DIR%\requirements.txt" --quiet
 
-echo Installing VideoDB SDK from TestPyPI...
-pip install "videodb==0.4.3" --no-cache-dir --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ --quiet
-
 REM 4. Set default port
 set "API_PORT=8000"
 

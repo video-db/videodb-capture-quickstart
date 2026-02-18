@@ -2,7 +2,7 @@
 
 A Loom-style screen recording app built with Electron and the VideoDB Capture SDK.
 
-> **Platform Support**: Currently available for macOS — Windows and Linux support coming soon
+> **Platform Support**: macOS and Windows
 
 ## Features
 
@@ -26,6 +26,7 @@ A Loom-style screen recording app built with Electron and the VideoDB Capture SD
 
 - Node.js 16+
 - Python 3.10+ ([download](https://python.org/downloads/))
+- VideoDB API Key ([console.videodb.io](https://console.videodb.io))
 
 ## Quick Start
 
@@ -37,8 +38,6 @@ npm start
 
 > **Note**: On first run, close the app and run `npm start` again after setup completes.
 
-Get your API key from [console.videodb.io](https://console.videodb.io).
-
 ## Usage
 
 1. **Connect**: Enter your name and API key on first launch
@@ -48,18 +47,28 @@ Get your API key from [console.videodb.io](https://console.videodb.io).
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Permissions denied | System Settings > Privacy & Security > enable Screen Recording/Microphone/Camera |
-| Camera not showing | Toggle camera off/on, check Camera permission |
-| Backend won't start | Delete `server/venv` and run `npm start` again |
+### Permissions denied
+- **macOS**: System Settings → Privacy & Security → enable Screen Recording/Microphone/Camera
+- **Windows**: Settings → Privacy → enable Microphone/Camera access
+
+### Backend won't start
+- Delete `server/venv` and run `npm start` again
+- Make sure Python is installed and in PATH
+
+### Camera not showing
+- Toggle camera off/on in the sidebar
+- Check Camera permission in system settings
 
 ### Reset
-
 ```bash
+# macOS/Linux
 rm -rf server/venv server/users.db runtime.json
-npm run setup && npm start
+
+# Windows
+rmdir /s /q server\venv
+del server\users.db runtime.json
 ```
+Then run `npm run setup && npm start`
 
 ## Project Structure
 
@@ -76,4 +85,4 @@ npm run setup && npm start
 
 ## License
 
-[MIT](examples/async-recorder/LICENSE)
+MIT

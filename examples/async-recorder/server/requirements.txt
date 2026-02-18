@@ -5,4 +5,4 @@ pydantic-settings
 requests
 sqlalchemy
 pycloudflared
-# Note: videodb is installed separately from TestPyPI in start-server.sh
+videodb==0.4.0

@@ -85,6 +85,6 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "sqlite3": "^5.1.7",
-    "videodb": "github:video-db/videodb-node#release-0.4.0"
+    "videodb": "^0.2.0"
   }
 }
