@@ -202,6 +202,7 @@ async function main() {
       const label = sourceMatch ? `:${sourceMatch[1]}` : (rawSource ? `:${rawSource}` : '');
 
       if (channel === WebSocketChannel.transcript) {
+        if (!data.is_final) continue;
         const text = data.text || msg.text;
         if (text) console.log(`[Transcript${label}] ${text}`);
       } else if (channel === WebSocketChannel.spokenIndex || channel === 'audio_index') {

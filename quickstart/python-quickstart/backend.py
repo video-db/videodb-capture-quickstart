@@ -93,6 +93,8 @@ def start_ws_listener(ws_id_queue, name="Listener"):
                     data = msg.get("data", {})
 
                     if channel == "transcript":
+                        if not data.get("is_final", False):
+                            continue
                         text = data.get("text", "")
                         if text.strip():
                             print(f"[{name}] {text}")
