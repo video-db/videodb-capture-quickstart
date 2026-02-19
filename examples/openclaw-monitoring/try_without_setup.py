@@ -3,7 +3,7 @@ Try Without Setup - Monitor a Live OpenClaw Agent Instantly
 
 VideoDB hosts a live OpenClaw agent at matrix.videodb.io. This script connects
 directly to its RTSP streams (audio + screen), starts real-time transcription,
-audio/visual indexing, and alerts, then prints all events via WebSocket.
+audio/visual indexing, then prints all events via WebSocket.
 Automatically stops after 5 minutes.
 
 No EC2 instance, no OpenClaw installation, no Capture SDK needed — just a
@@ -33,13 +33,6 @@ DEFAULT_AUDIO_INDEX_PROMPT = "Summarize the audio content. Extract any speech ve
 
 DEFAULT_VISUAL_INDEX_PROMPT = "In one sentence, describe the active application and what the agent is doing on screen. Note the current time if a clock is visible."
 
-DEFAULT_ALERT_PROMPT = (
-    "A web browser window (such as Chrome, Firefox, Safari, or Edge) is open "
-    "and visible on screen. The browser could be showing any webpage, search "
-    "results, documentation, or any other web content."
-)
-DEFAULT_ALERT_LABEL = "browser-open"
-
 HARD_STOP_SECONDS = 5 * 60  # 5 minutes
 
 if not VIDEO_DB_API_KEY:
@@ -59,7 +52,6 @@ ICONS = {
     "transcript": f"{CYAN}🎙 ",
     "audio_index": f"{MAGENTA}🔊",
     "visual_index": f"{GREEN}👁 ",
-    "alert": f"{RED}⚠️ ",
     "unknown": f"{DIM}📡",
 }
 
@@ -103,23 +95,6 @@ async def listen_ws(ws):
 
             elif channel in ("scene_index", "visual_index"):
                 print(f"  {time}  {icon} VISUAL INDEX{RESET}  {text}")
-
-            elif channel == "alert":
-                label = data.get("label", "")
-                confidence = data.get("confidence", "")
-                context = data.get("context", "") if isinstance(data, dict) else ""
-                stream_id = data.get("rtstream_id", msg.get("rtstream_id", ""))
-                index_id = data.get("scene_index_id", msg.get("scene_index_id", ""))
-                print(f"  {time}  {icon} ALERT{RESET} [{BOLD}{label}{RESET}] "
-                      f"confidence={confidence}")
-                if text:
-                    print(f"          {text}")
-                if stream_id:
-                    print(f"          {DIM}rtstream: {stream_id}{RESET}")
-                if index_id:
-                    print(f"          {DIM}index:    {index_id}{RESET}")
-                if context:
-                    print(f"          {DIM}context:  {context}{RESET}")
 
             else:
                 raw = json.dumps(msg, indent=2, default=str)
@@ -210,11 +185,6 @@ async def main():
     visual_index_prompt = custom if custom else DEFAULT_VISUAL_INDEX_PROMPT
     print()
 
-    print(f"  {BOLD}Alert Event{RESET} — triggers when this condition is detected on screen")
-    print(f"  {DIM}Default: {DEFAULT_ALERT_PROMPT}{RESET}")
-    custom = input(f"  {CYAN}▸{RESET} Custom prompt: ").strip()
-    alert_prompt = custom if custom else DEFAULT_ALERT_PROMPT
-
     # --- Start pipelines ---
     header("Starting AI Pipelines")
 
@@ -228,31 +198,12 @@ async def main():
     )
     step("Audio indexing started", "5s window")
 
-    visual_index = screen_stream.index_visuals(
+    screen_stream.index_visuals(
         prompt=visual_index_prompt,
         batch_config={"type": "time", "value": 5, "frame_count": 1},
         ws_connection_id=ws.connection_id,
     )
     step("Visual indexing started", "5s window, 1 frames")
-
-    # Alert: reuse existing event or create a new one
-    existing_events = conn.list_events()
-    event_id = None
-    for ev in existing_events:
-        if ev.get("label") == DEFAULT_ALERT_LABEL:
-            event_id = ev.get("event_id")
-            step("Event reused", f"label={DEFAULT_ALERT_LABEL}  id={event_id}")
-            break
-    if not event_id:
-        event_id = conn.create_event(event_prompt=alert_prompt, label=DEFAULT_ALERT_LABEL)
-        step("Event created", f"label={DEFAULT_ALERT_LABEL}  id={event_id}")
-
-    alert_id = visual_index.create_alert(
-        event_id=event_id,
-        callback_url="https://example.com/alert",
-        ws_connection_id=ws.connection_id,
-    )
-    step("Alert attached to visual index", f"alert_id={alert_id}")
 
     # --- Live events ---
     header("Live Events")
