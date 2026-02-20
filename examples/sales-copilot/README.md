@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/e3cd2dcc-d9ab-4f5f-8904-52c56133ed2d
 - **Apple Silicon**: [sales-copilot-1.0.0-arm64.dmg](https://artifacts.videodb.io/sales-copilot/sales-copilot-1.0.0-arm64.dmg)
 - **Apple Intel**: [sales-copilot-1.0.0.dmg](https://artifacts.videodb.io/sales-copilot/sales-copilot-1.0.0.dmg)
 
-<p align="center">
+<p>
   <em>Currently available for macOS — Windows and Linux support coming soon</em>
 </p>
 

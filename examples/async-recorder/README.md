@@ -32,11 +32,11 @@
 
 | Main Window | Recording |
 |-------------|-----------|
-| ![Main](screenshots/main.png) | ![Recording](screenshots/recording.png) |
+| ![Main](../../assets/async-recorder-main.png) | ![Recording](../../assets/async-recorder-recording.png) |
 
 | Camera Bubble | History |
 |---------------|---------|
-| ![Camera](screenshots/camera.png) | ![History](screenshots/history.png) |
+| ![Camera](../../assets/async-recorder-camera.png) | ![History](../../assets/async-recorder-history.png) |
 
 ## Prerequisites
 
