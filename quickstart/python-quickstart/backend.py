@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import threading
 import queue
@@ -122,7 +123,88 @@ def start_ws_listener(ws_id_queue, name="Listener"):
     return t
 
 
-# --- Webhook Handler & AI Pipelines ---
+# --- AI Pipeline Setup ---
+
+WS_CONNECT_TIMEOUT = 30
+WS_CONNECT_DELAY = 2
+
+
+def connect_ws_for_stream(name):
+    """Start a WebSocket listener and return its connection ID, with retry."""
+    for attempt in range(3):
+        q = queue.Queue()
+        start_ws_listener(q, name=name)
+        try:
+            ws_id = q.get(timeout=WS_CONNECT_TIMEOUT)
+            return ws_id
+        except queue.Empty:
+            print(f"[{name}] WebSocket connect attempt {attempt + 1} timed out, retrying...")
+            time.sleep(WS_CONNECT_DELAY)
+    raise TimeoutError(f"[{name}] Failed to connect WebSocket after 3 attempts")
+
+
+def start_ai_pipelines(capture_session_id):
+    """Run AI pipeline setup in a background thread so the webhook can return immediately."""
+    try:
+        session = conn.get_capture_session(capture_session_id)
+        print(f"Retrieved Session: {session.id}")
+
+        mics = session.get_rtstream("mic")
+        displays = session.get_rtstream("screen")
+        system_audios = session.get_rtstream("system_audio")
+
+        print(
+            f"  Mics: {len(mics)} | System Audio: {len(system_audios)} | Displays: {len(displays)}"
+        )
+
+        # Start AI on System Audio
+        if system_audios:
+            sys_audio = system_audios[0]
+            print(f"  Indexing system audio: {sys_audio.id}")
+
+            ws_id = connect_ws_for_stream("SystemAudioWatcher")
+            sys_audio.start_transcript(ws_connection_id=ws_id)
+            sys_audio.index_audio(
+                prompt="Summarize what is being discussed",
+                ws_connection_id=ws_id,
+                batch_config={"type": "time", "value": 30},
+            )
+            print(f"  System Audio indexing started (socket: {ws_id})")
+            time.sleep(WS_CONNECT_DELAY)
+
+        # Start AI on Mic
+        if mics:
+            mic = mics[0]
+            print(f"  Indexing mic: {mic.id}")
+
+            ws_id = connect_ws_for_stream("MicWatcher")
+            mic.start_transcript(ws_connection_id=ws_id)
+            mic.index_audio(
+                prompt="Summarize what is being discussed",
+                ws_connection_id=ws_id,
+                batch_config={"type": "time", "value": 30},
+            )
+            print(f"  Mic indexing started (socket: {ws_id})")
+            time.sleep(WS_CONNECT_DELAY)
+
+        # Start AI on Displays
+        if displays:
+            display = displays[0]
+            print(f"  Indexing display: {display.id}")
+
+            ws_id = connect_ws_for_stream("VisualWatcher")
+            display.index_visuals(
+                prompt="In one sentence, describe what is on screen",
+                ws_connection_id=ws_id,
+            )
+            print(f"  Visual indexing started (socket: {ws_id})")
+
+    except Exception as e:
+        print(f"Error in AI pipeline setup: {e}")
+        traceback.print_exc()
+
+
+# --- Webhook Handler ---
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -148,71 +230,9 @@ def webhook():
     if event == "capture_session.active":
         print("Capture Session Active! Starting AI pipelines...")
         capture_session_id = data.get("capture_session_id")
-
-        try:
-            session = conn.get_capture_session(capture_session_id)
-            print(f"Retrieved Session: {session.id}")
-
-            mics = session.get_rtstream("mic")
-            displays = session.get_rtstream("screen")
-            system_audios = session.get_rtstream("system_audio")
-
-            print(
-                f"  Mics: {len(mics)} | System Audio: {len(system_audios)} | Displays: {len(displays)}"
-            )
-
-            # Start AI on System Audio
-            if system_audios:
-                sys_audio = system_audios[0]
-                print(f"  Indexing system audio: {sys_audio.id}")
-
-                q = queue.Queue()
-                start_ws_listener(q, name="SystemAudioWatcher")
-                ws_id = q.get(timeout=10)
-
-                sys_audio.start_transcript(ws_connection_id=ws_id)
-                sys_audio.index_audio(
-                    prompt="Summarize what is being discussed",
-                    ws_connection_id=ws_id,
-                    batch_config={"type": "time", "value": 30},
-                )
-                print(f"  System Audio indexing started (socket: {ws_id})")
-
-            # Start AI on Mic
-            if mics:
-                mic = mics[0]
-                print(f"  Indexing mic: {mic.id}")
-
-                q = queue.Queue()
-                start_ws_listener(q, name="MicWatcher")
-                ws_id = q.get(timeout=10)
-
-                mic.start_transcript(ws_connection_id=ws_id)
-                mic.index_audio(
-                    prompt="Summarize what is being discussed",
-                    ws_connection_id=ws_id,
-                    batch_config={"type": "time", "value": 30},
-                )
-                print(f"  Mic indexing started (socket: {ws_id})")
-
-            # Start AI on Displays
-            if displays:
-                display = displays[0]
-                print(f"  Indexing display: {display.id}")
-
-                q = queue.Queue()
-                start_ws_listener(q, name="VisualWatcher")
-                ws_id = q.get(timeout=10)
-
-                display.index_visuals(
-                    prompt="In one sentence, describe what is on screen",
-                    ws_connection_id=ws_id,
-                )
-                print(f"  Visual indexing started (socket: {ws_id})")
-
-        except Exception as e:
-            print(f"Error in webhook processing: {e}")
-            traceback.print_exc()
+        threading.Thread(
+            target=start_ai_pipelines, args=(capture_session_id,), daemon=True
+        ).start()
 
     elif event == "capture_session.stopping":
         print("Session stopping...")
