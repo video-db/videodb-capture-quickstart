@@ -46,6 +46,8 @@ async def run_capture(token, session_id):
         mic.store = True
         display.store = True
         system_audio.store = True
+        if display:
+            display.is_primary = True
         selected_channels = [c for c in [mic, display, system_audio] if c]
         if not selected_channels:
             print("No channels found.")
@@ -58,7 +60,6 @@ async def run_capture(token, session_id):
         await client.start_session(
             capture_session_id=session_id,
             channels=selected_channels,
-            primary_video_channel_id=display.id if display else None,
         )
 
         print("\nRecording... Press Enter to stop (or Ctrl+C to force quit).")
