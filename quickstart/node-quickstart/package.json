@@ -13,7 +13,7 @@
   "dependencies": {
     "@videodb/recorder": "^0.2.4",
     "dotenv": "^17.2.3",
-    "videodb": "0.2.0"
+    "videodb": "0.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

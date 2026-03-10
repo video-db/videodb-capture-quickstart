@@ -2,8 +2,9 @@ import 'dotenv/config';
 import {
   connect,
   WebSocketChannel,
-  type ChannelConfig,
 } from 'videodb';
+import type { RecordingChannelConfig } from 'videodb/capture';
+
 import { CaptureClient } from 'videodb/capture';
 
 const API_KEY = process.env.VIDEODB_API_KEY;
@@ -61,30 +62,28 @@ async function main() {
   const displayChannel = channels.displays.default;
   const systemAudioChannel = channels.systemAudio.default;
 
-  // record: true saves the recording to VideoDB after capture stops.
-  // Without this, streams are processed in real-time but not persisted.
-  const captureChannels: ChannelConfig[] = [];
+  // record: true enables recording, store: true persists to VideoDB after capture stops.
+  const captureChannels: RecordingChannelConfig[] = [];
   if (micChannel) {
     captureChannels.push({
       channelId: micChannel.id,
       type: 'audio',
-      record: true,
-      transcript: true,
+      store: true,
+
     });
   }
   if (displayChannel) {
     captureChannels.push({
       channelId: displayChannel.id,
       type: 'video',
-      record: true,
+      store: true,
     });
   }
   if (systemAudioChannel) {
     captureChannels.push({
       channelId: systemAudioChannel.id,
       type: 'audio',
-      record: true,
-      transcript: true,
+      store: true,
     });
   }
 
@@ -155,9 +154,11 @@ async function main() {
   console.log('============================================================\n');
 
   let isShuttingDown = false;
-  const shutdown = async () => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
+  let isStopped = false;
+
+  const stopCapture = async () => {
+    if (isStopped) return;
+    isStopped = true;
 
     console.log('\nStopping capture...');
     try {
@@ -166,11 +167,18 @@ async function main() {
     try {
       await client.shutdown();
     } catch {}
+    console.log('Capture stopped.');
+    console.log('\nWaiting up to 2 minutes for recording export...');
+  };
+
+  const cleanup = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
     try {
       await ws.close();
     } catch {}
 
-    console.log('Capture stopped.');
     console.log('\n============================================================');
     console.log("What's next?");
     console.log(
@@ -185,10 +193,19 @@ async function main() {
   // Listen for Enter key to stop gracefully
   process.stdin.setRawMode?.(false);
   process.stdin.resume();
-  process.stdin.once('data', () => shutdown());
+  process.stdin.once('data', () => stopCapture());
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', async () => {
+    if (!isStopped) await stopCapture();
+    await cleanup();
+  });
+  process.on('SIGTERM', async () => {
+    if (!isStopped) await stopCapture();
+    await cleanup();
+  });
+
+  // Set a 2-minute timeout after capture stops to wait for export callback
+  let exportTimeout: ReturnType<typeof setTimeout> | null = null;
 
   try {
     for await (const msg of ws.receive()) {
@@ -219,8 +236,36 @@ async function main() {
           console.log('*'.repeat(50));
         }
       } else if (channel === WebSocketChannel.captureSession) {
-        const status = data.status as string;
-        console.log(`\n[Session] ${status}`);
+        const event = (data.event || (msg as Record<string, unknown>).event) as string;
+        const exportData = (data.data || data) as Record<string, unknown>;
+
+        if (event === 'capture_session.exported') {
+          const videoId = exportData.exported_video_id;
+          const streamUrl = exportData.stream_url;
+          const playerUrl = exportData.player_url;
+
+          console.log(`\n${'='.repeat(60)}`);
+          console.log('Recording Exported!');
+          if (videoId) console.log(`  Video ID:   ${videoId}`);
+          if (streamUrl) console.log(`  Stream URL: ${streamUrl}`);
+          if (playerUrl) console.log(`  Player URL: ${playerUrl}`);
+          console.log('='.repeat(60));
+
+          if (exportTimeout) clearTimeout(exportTimeout);
+          await cleanup();
+          break;
+        } else {
+          const status = (data.status || (msg as Record<string, unknown>).status || event || JSON.stringify(data)) as string;
+          console.log(`\n[Session] ${status}`);
+
+          // Start 2-minute timeout once capture is stopped
+          if (isStopped && !exportTimeout) {
+            exportTimeout = setTimeout(async () => {
+              console.log('\nExport timeout (2 minutes). Exiting...');
+              await cleanup();
+            }, 120_000);
+          }
+        }
       }
     }
   } catch (e) {
@@ -231,7 +276,7 @@ async function main() {
 
   if (!isShuttingDown) {
     console.log('WebSocket connection closed unexpectedly');
-    await shutdown();
+    await cleanup();
   }
 }
 
