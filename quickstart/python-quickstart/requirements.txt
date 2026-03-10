@@ -1,5 +1,4 @@
---extra-index-url https://test.pypi.org/simple/
-videodb[capture]==0.4.9
+videodb[capture]==0.4.2
 flask
 pycloudflared
 python-dotenv
