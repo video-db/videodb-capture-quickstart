@@ -66,7 +66,7 @@ Each app below is fully functional and can be run locally. They demonstrate diff
 
 | App | Use Case | What It Does |
 |-----|----------|--------------|
-| **[Pair Programmer](./examples/claude-pair-programmer/README.md)** | 👁️ Perception for Claude Code | Give Claude Code eyes and ears. Sees your screen, hears what you say, remembers what just happened — like a programmer sitting next to you. No more copy-pasting or repeated context. |
+| **[Pair Programmer](./examples/pair-programmer/README.md)** | 👁️ Agentic Skill for Coding Agents | Turn your coding agent into a screen aware, voice aware, context rich collaborator. Works with Claude Code, Cursor, Codex, and other skill compatible agents. |
 | **[Focusd](./examples/focusd-productivity-tracker/README.md)** | 📊 Productivity Tracking | Records your screen all day, understands what you're working on, generates session summaries and daily recaps with actionable insights.|
 | **[Sales Copilot](./examples/sales-copilot/README.md)** | 💼 Sales Coaching | Real-time cue cards, sentiment tracking, talk ratio monitoring, and post-call summaries during sales calls.|
 | **[Async Recorder](./examples/async-recorder)** | 🎥 Async Video Messages | Record async video messages with camera bubble overlay, perfect for team updates and demos.|
