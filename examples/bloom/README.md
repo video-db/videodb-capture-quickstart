@@ -9,7 +9,9 @@
 <!-- PROJECT LOGO -->
 <br />
 <p align="center">
-  <a href="https://videodb.io/"><img src="assets/Colour_Black Wordmark.png" alt="Bloom" height="72"></a>
+  <a href="https://videodb.io/">
+    <img src="https://raw.githubusercontent.com/video-db/bloom/main/assets/Colour_Black%20Wordmark.png" alt="Bloom" height="72">
+  </a>
 </p>
 
 <h3 align="center">An open source, agentic Loom alternative.</h3>
