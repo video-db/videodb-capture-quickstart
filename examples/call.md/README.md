@@ -30,8 +30,7 @@
 <br />
 <p align="center">
   <a href="https://github.com/video-db/call.md">
-    <img src="resources/wordmark-color-black-bg.png" alt="Call.md Logo" width="300" height="">
-  </a>
+  <img src="https://raw.githubusercontent.com/video-db/call.md/main/resources/wordmark-color-black-bg.png" alt="Call.md Logo" width="300">  </a>
 
   <h1 align="center">Call.md</h1>
 
