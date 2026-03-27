@@ -16,6 +16,12 @@
 
 ---
 
+## Demo
+
+https://github.com/user-attachments/assets/ecd6c161-7cbd-4629-af7d-a8014e0b82f8
+
+---
+
 ## The Problem
 
 Right now, most people running AI agents are doing this:
