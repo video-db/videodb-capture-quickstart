@@ -1,8 +1,8 @@
 import asyncio
+import time
 import requests
 import sys
 from videodb.capture import CaptureClient
-
 BACKEND_URL = "http://localhost:5002"
 
 
@@ -57,19 +57,35 @@ async def run_capture(token, session_id):
         for ch in selected_channels:
             print(f"  - {ch.type}: {ch.id}")
 
+        requests.post(f"{BACKEND_URL}/mark-start", json={"session_id": session_id}, timeout=5)
         await client.start_session(
             capture_session_id=session_id,
             channels=selected_channels,
         )
 
-        print("\nRecording... Press Enter to stop (or Ctrl+C to force quit).")
+        print("\nRecording... Press Enter to stop (or Ctrl+C to force quit).\n")
+
+        async def show_timer():
+            start = time.time()
+            while True:
+                elapsed = int(time.time() - start)
+                hrs, remainder = divmod(elapsed, 3600)
+                mins, secs = divmod(remainder, 60)
+                print(f"\r  Recording: {hrs:02d}:{mins:02d}:{secs:02d}", end="", flush=True)
+                await asyncio.sleep(1)
+
+        timer_task = asyncio.create_task(show_timer())
 
         # Wait for Enter key in a background thread
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, input)
 
+        timer_task.cancel()
+        print()  # newline after timer
+
         # Graceful stop
-        print("\nStopping capture...")
+        print("Stopping capture...")
+        requests.post(f"{BACKEND_URL}/mark-stop", json={"session_id": session_id}, timeout=5)
         await client.stop_session()
         await client.shutdown()
         print("Capture stopped.")

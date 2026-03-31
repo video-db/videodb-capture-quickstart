@@ -27,6 +27,7 @@ if not VIDEO_DB_API_KEY:
 
 conn = None
 public_url = None
+session_timestamps = {}  # {session_id: {"start": t, "stop": t}}
 
 
 # --- Initialization ---
@@ -45,6 +46,22 @@ def setup():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "tunnel": public_url})
+
+
+@app.route("/mark-start", methods=["POST"])
+def mark_start():
+    sid = request.json.get("session_id")
+    session_timestamps.setdefault(sid, {})["start"] = time.time()
+    print(f"[TIMING] Marked start for {sid}")
+    return jsonify({"ok": True})
+
+
+@app.route("/mark-stop", methods=["POST"])
+def mark_stop():
+    sid = request.json.get("session_id")
+    session_timestamps.setdefault(sid, {})["stop"] = time.time()
+    print(f"[TIMING] Marked stop for {sid}")
+    return jsonify({"ok": True})
 
 
 @app.route("/init-session", methods=["POST"])
@@ -227,9 +244,14 @@ def webhook():
     ]:
         return jsonify({"received": True})
 
+    capture_session_id = data.get("capture_session_id")
+    ts = session_timestamps.get(capture_session_id, {})
+    now = time.time()
+
     if event == "capture_session.active":
         print("Capture Session Active! Starting AI pipelines...")
-        capture_session_id = data.get("capture_session_id")
+        if "start" in ts:
+            print(f"[TIMING] Start -> Active: {now - ts['start']:.2f}s")
         threading.Thread(
             target=start_ai_pipelines, args=(capture_session_id,), daemon=True
         ).start()
@@ -239,12 +261,17 @@ def webhook():
 
     elif event == "capture_session.stopped":
         print("Session stopped. All streams finalized.")
+        if "stop" in ts:
+            print(f"[TIMING] Stop -> Stopped: {now - ts['stop']:.2f}s")
 
     elif event == "capture_session.exported":
         export_data = data.get("data", {})
         video_id = export_data.get("exported_video_id")
         stream_url = export_data.get("stream_url")
         player_url = export_data.get("player_url")
+
+        if "stop" in ts:
+            print(f"[TIMING] Stop -> Exported: {now - ts['stop']:.2f}s")
 
         print(f"\nRecording Exported! Video ID: {video_id}")
         if stream_url:
