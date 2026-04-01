@@ -88,7 +88,7 @@ This will automatically detect your Mac architecture, download the right build, 
 </details>
 
 <p>
-  <em>Pre-built builds are available for macOS. Linux support coming soon.</em>
+  <em>Supported on macOS and Windows (pre-built installer available for macOS). Linux support coming soon.</em>
 </p>
 
 ---

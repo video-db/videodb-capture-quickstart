@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/0fb87dfe-eb60-4e1e-9301-6ec01de80a25
 
 - [Download for macOS](https://artifacts.videodb.io/focusd-productivity-tracker/focusd-productivity-tracker-latest.dmg)
 
-> **Platform Support**: macOS (Windows and Linux support coming soon)
+> **Platform Support**: macOS and Windows (Linux support coming soon)
 
 ---
 
