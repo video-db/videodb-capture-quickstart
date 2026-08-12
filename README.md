@@ -70,6 +70,8 @@ Each app below is fully functional and can be run locally. They demonstrate diff
 | **[Focusd](./examples/focusd-productivity-tracker/README.md)** | 📊 Productivity Tracking | Records your screen all day, understands what you're working on, generates session summaries and daily recaps with actionable insights.|
 | **[Call.md](./examples/call.md/README.md)** | 💼 Meeting Intelligence | Real-time AI meeting assistant with dual-channel transcription, live assists, MCP integration, and automated summaries.|
 | **[Bloom](./examples/bloom)** | 🎥 Screen Recording | Local-first screen recorder with AI processing. Record, upload to VideoDB, and query with natural language.|
+| **[Open Record & Replay](./examples/open-record-replay/README.md)** | 🤖 Agent Skill Creation | Record desktop workflows once and compile them into reusable AI-agent skills for reliable replay.|
+| **[Chess Lens](./examples/chess-lens/README.md)** | ♟️ Real-Time Chess Coaching | Screen-aware chess coaching with instant engine tips, AI explanations, and session history.|
 
 ### Quickstart Examples
 
