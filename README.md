@@ -34,12 +34,12 @@
 
 VideoDB lets an AI agent watch, search and clip video.
 
-- **Claude**: [Add VideoDB from the plugin directory](https://videodb.io/claude?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=directory)
-- **ChatGPT**: [Add VideoDB from the plugin directory](https://videodb.io/chatgpt?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=directory)
+- **Claude**: [Add VideoDB from the plugin directory](https://videodb.io/claude?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=readme)
+- **ChatGPT**: [Add VideoDB from the plugin directory](https://videodb.io/chatgpt?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=readme)
 - **Claude Code**: `claude mcp add --transport http videodb https://mcp.videodb.io/mcp`
 - **Cursor or any MCP client**: Add the remote MCP server and log in once: `https://mcp.videodb.io/mcp`
 
-Free to start: $20 of credits, no credit card. [Steps for every client](https://docs.videodb.io/pages/mcp/connect?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=directory).
+Free to start: $20 of credits, no credit card. [Steps for every client](https://docs.videodb.io/pages/mcp/connect?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=readme).
 
 The Capture SDK below is for writing code against VideoDB yourself.
 
