@@ -64,9 +64,9 @@ Now you can find your Call.md recordings in Claude and ChatGPT and continue your
 
 | You are using | Do this |
 | --- | --- |
-| **Claude** (web, desktop, mobile) and Claude Code | [Add to Claude](https://videodb.io/claude?ref=call-md), one click, then log in to VideoDB. No install, no API key. |
-| **ChatGPT** | [Add to ChatGPT](https://videodb.io/chatgpt?ref=call-md), one click, then log in to VideoDB. |
-| **Cursor and other MCP clients** | Add `https://mcp.videodb.io/mcp` as a remote MCP server. [Setup guide](https://docs.videodb.io/pages/mcp/connect?utm_source=github&utm_medium=readme&utm_campaign=call-md) |
+| **Claude** (web, desktop, mobile) and Claude Code | [Add to Claude](https://videodb.io/claude?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=directory), one click, then log in to VideoDB. No install, no API key. |
+| **ChatGPT** | [Add to ChatGPT](https://videodb.io/chatgpt?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=directory), one click, then log in to VideoDB. |
+| **Cursor and other MCP clients** | Add `https://mcp.videodb.io/mcp` as a remote MCP server. [Setup guide](https://docs.videodb.io/pages/mcp/connect?utm_source=github.com/video-db/videodb-capture-quickstart&utm_medium=directory) |
 | **Coding agents with a shell** (Claude Code, Codex, Copilot) | `npx skills add video-db/skills` |
 
 Log in with the VideoDB account you use in Call.md, then ask: "Find yesterday's call with the design team. What did we decide, and what do I need to do next?"
